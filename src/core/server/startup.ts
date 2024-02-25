@@ -160,8 +160,9 @@ alt.onClient('serverSlots:enterSlot', (player: alt.Player, clientSlotPosition: a
 
     allPlayers.forEach(arrPlayer => {
         if (arrPlayer.closestSlot != player.seatedSlot) return;
+        if (arrPlayer == player) return;
         
-        player.closestSlot = null;
+        arrPlayer.closestSlot = null;
         arrPlayer.emitRaw("clientSlots:resetClosestSlot");
     });
 });
