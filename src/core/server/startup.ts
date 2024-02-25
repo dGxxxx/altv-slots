@@ -161,11 +161,23 @@ alt.onClient('serverSlots:enterSlot', (player: alt.Player, clientSlotPosition: a
     allPlayers.forEach(arrPlayer => {
         if (arrPlayer.closestSlot != player.seatedSlot) return;
         if (arrPlayer == player) return;
-        
+
         arrPlayer.closestSlot = null;
         arrPlayer.emitRaw("clientSlots:resetClosestSlot");
     });
 });
+
+alt.onClient('serverSlots:spinSlot', (player: alt.Player) => {
+    if (player.closestSlot == null) return;
+    if (player.seatedSlot == null) return;
+
+    let distanceCheck = player.pos.distanceTo(player.closestSlot.slotPosition);
+    if (distanceCheck > 3) return;
+
+
+    player.emitRaw("clientSlots:spinSlot")
+});
+
 
 
 

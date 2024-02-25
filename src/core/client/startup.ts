@@ -4,6 +4,8 @@ import * as native from 'natives';
 const casinoIpls: string[] = [ 'hei_dlc_windows_casino', 'hei_dlc_casino_aircon', 'vw_dlc_casino_door', 'hei_dlc_casino_door', 'vw_casino_main' ];
 const randomIdle: string[] = ['base_idle_a', 'base_idle_b', 'base_idle_c', 'base_idle_d', 'base_idle_e', 'base_idle_f'];
 const randomEnter: string[] = ['enter_left', 'enter_right', 'enter_left_short', 'enter_right_short'];
+const randomSpin: string[] = ['press_spin_a', 'press_spin_b', 'pull_spin_a', 'pull_spin_b'];
+const randomSpinningIdle: string[] = ['spinning_a', 'spinning_b', 'spinning_c'];
 
 let closestSlot: number | null = null;
 let closestSlotModel: number | null = null;
@@ -12,6 +14,8 @@ let closestSlotRotation: alt.Vector3 | null = null;
 
 let drawInterval: number | null = null;
 let animDict: string = 'anim_casino_a@amb@casino@games@slots@male';
+let isSeatedAtSlot: boolean = false;
+let isSpinning: boolean = false;
 
 interface Slot {
     slotSound: string;
@@ -127,8 +131,25 @@ alt.on('keyup', (key: alt.KeyCode) => {
         closestSlotCoord == null ||
         closestSlotRotation == null
         ) return; 
+    
+    if (isSeatedAtSlot) return;
 
     alt.emitServerRaw('serverSlots:enterSlot', closestSlotCoord);
+});
+
+alt.on('keyup', (key: alt.KeyCode) => {
+    if (key != 32) return;
+
+    if (closestSlot == null ||
+        closestSlotModel == null || 
+        closestSlotCoord == null ||
+        closestSlotRotation == null
+        ) return; 
+    
+    if (!isSeatedAtSlot) return;
+    if (isSpinning) return;
+
+    alt.emitServerRaw('serverSlots:spinSlot');
 });
 
 alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: number) => {
@@ -154,6 +175,156 @@ alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: n
     }, 0);
 });
 
+alt.onServer('clientSlots:spinSlot', async () => {
+    if (closestSlot == null ||
+        closestSlotCoord == null ||
+        closestSlotModel == null ||
+        closestSlotRotation == null) return;
+
+    if (!isSeatedAtSlot) return;
+    
+    isSpinning = true;
+
+    const spinScene = native.networkCreateSynchronisedScene(
+        closestSlotCoord.x,
+        closestSlotCoord.y,
+        closestSlotCoord.z,
+        closestSlotRotation.x,
+        closestSlotRotation.y,
+        closestSlotRotation.z,
+        2,
+        true,
+        false,
+        1.0,
+        0,
+        1.0
+    );
+
+    await alt.Utils.requestAnimDict(animDict);
+
+    let randomAnimName = randomSpin[Math.floor(Math.random() * randomSpin.length)];
+    native.networkAddPedToSynchronisedScene(
+        alt.Player.local.scriptID,
+        spinScene,
+        animDict,
+        randomAnimName,
+        2.0,
+        -1.5,
+        13,
+        16,
+        1000.0,
+        0
+    );
+
+    native.networkStartSynchronisedScene(spinScene);
+
+    const animationDuration = native.getAnimDuration(animDict, randomAnimName);
+
+    let leverScene;
+
+    if (randomAnimName === 'pull_spin_a') {
+        leverScene = native.networkCreateSynchronisedScene(
+            closestSlotCoord.x,
+            closestSlotCoord.y,
+            closestSlotCoord.z,
+            closestSlotRotation.x,
+            closestSlotRotation.y,
+            closestSlotRotation.z,
+            2,
+            true,
+            false,
+            1.0,
+            0,
+            1.0
+        );
+
+        native.networkAddMapEntityToSynchronisedScene(
+            leverScene,
+            native.getEntityModel(closestSlot),
+            closestSlotCoord.x,
+            closestSlotCoord.y,
+            closestSlotCoord.z,
+            2.0,
+            'pull_spin_a_SLOTMACHINE',
+            2.0,
+            -1.5,
+            13.0
+        );
+
+        native.networkStartSynchronisedScene(leverScene);
+        await alt.Utils.wait(animationDuration * 320);
+    } else if (randomAnimName === 'pull_spin_b') {
+        leverScene = native.networkCreateSynchronisedScene(
+            closestSlotCoord.x,
+            closestSlotCoord.y,
+            closestSlotCoord.z,
+            closestSlotRotation.x,
+            closestSlotRotation.y,
+            closestSlotRotation.z,
+            2,
+            true,
+            false,
+            1.0,
+            0,
+            1.0
+        );
+
+        native.networkAddMapEntityToSynchronisedScene(
+            leverScene,
+            native.getEntityModel(closestSlot),
+            closestSlotCoord.x,
+            closestSlotCoord.y,
+            closestSlotCoord.z,
+            2.0,
+            'pull_spin_b_SLOTMACHINE',
+            2.0,
+            -1.5,
+            13.0
+        );
+
+        native.networkStartSynchronisedScene(leverScene);
+        await alt.Utils.wait(animationDuration * 320);
+    };
+
+    await alt.Utils.wait(animationDuration * 180);
+    playSlotSound('start_spin');
+
+    await alt.Utils.wait(animationDuration * 500);
+    const spinningScene = native.networkCreateSynchronisedScene(
+        closestSlotCoord.x,
+        closestSlotCoord.y,
+        closestSlotCoord.z,
+        closestSlotRotation.x,
+        closestSlotRotation.y,
+        closestSlotRotation.z,
+        2,
+        true,
+        false,
+        1.0,
+        0,
+        1.0
+    );
+
+    randomAnimName = randomSpinningIdle[Math.floor(Math.random() * randomSpinningIdle.length)];
+    native.networkAddPedToSynchronisedScene(
+        alt.Player.local.scriptID,
+        spinningScene,
+        animDict,
+        randomAnimName,
+        2.0,
+        -1.5,
+        13,
+        16,
+        2.0,
+        0
+    );
+
+    native.networkStartSynchronisedScene(spinningScene);
+
+    if (leverScene != null) native.networkStopSynchronisedScene(leverScene);
+    native.freezeEntityPosition(closestSlot, true);
+});
+
 alt.onServer('clientSlots:resetClosestSlot', () => {
     if (closestSlot != null) closestSlot = null;
     if (closestSlotCoord != null) closestSlot = null;
@@ -167,6 +338,13 @@ alt.onServer('clientSlots:resetClosestSlot', () => {
 });
 
 alt.onServer('clientSlots:enterSlot', async () => {
+    if (closestSlot == null ||
+        closestSlotCoord == null ||
+        closestSlotModel == null ||
+        closestSlotRotation == null) return;
+    
+    isSeatedAtSlot = true;
+
     if (alt.hash('mp_f_freemode_01') === alt.Player.local.model) {
         animDict = 'anim_casino_a@amb@casino@games@slots@female';
     };
@@ -241,6 +419,11 @@ alt.onServer('clientSlots:enterSlot', async () => {
     );
 
     native.networkStartSynchronisedScene(idleScene);
+
+    if (drawInterval != null) {
+        alt.clearInterval(drawInterval);
+    };
+    
     hintText('Spin ~INPUT_JUMP~ \t Leave ~INPUT_FRONTEND_RRIGHT~');
 });
 
