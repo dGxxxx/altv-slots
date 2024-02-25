@@ -19,41 +19,37 @@ interface Slot {
     slotName: string;
     reelA: string;
     reelB: string;
-    scriptRt: string;
     slotTheme?: number;
     missChance: number;
     betAmounts: number[];
 };
 
 const availableSlots: { [key: number]: Slot } = {
-    [-1932041857]: {
+    [2362925439]: {
         slotSound: 'dlc_vw_casino_slot_machine_ak_npc_sounds',
         slotTexture: 'CasinoUI_Slots_Angel',
         slotName: 'Angel And The Knight',
         reelA: 'vw_prop_casino_slot_01a_reels',
         reelB: 'vw_prop_casino_slot_01b_reels',
-        scriptRt: '01a',
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
     },
-    [-1519644200]: {
+    [2775323096]: {
         slotSound: 'dlc_vw_casino_slot_machine_ir_npc_sounds',
         slotTexture: 'CasinoUI_Slots_Impotent',
         slotName: 'Impotent Rage',
         reelA: 'vw_prop_casino_slot_02a_reels',
         reelB: 'vw_prop_casino_slot_02b_reels',
-        scriptRt: '02a',
         slotTheme: 2,
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
     },
-    [-430989390]: {
+    [3863977906]: {
         slotSound: 'dlc_vw_casino_slot_machine_rsr_npc_sounds',
         slotTexture: 'CasinoUI_Slots_Ranger',
         slotName: 'Republican Space Rangers',
         reelA: 'vw_prop_casino_slot_03a_reels',
         reelB: 'vw_prop_casino_slot_03b_reels',
-        scriptRt: '03a',
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
     },
@@ -63,7 +59,6 @@ const availableSlots: { [key: number]: Slot } = {
         slotName: 'Fame Or Shame',
         reelA: 'vw_prop_casino_slot_04a_reels',
         reelB: 'vw_prop_casino_slot_04b_reels',
-        scriptRt: '04a',
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
     },
@@ -73,7 +68,6 @@ const availableSlots: { [key: number]: Slot } = {
         slotName: 'Deity Of The Sun',
         reelA: 'vw_prop_casino_slot_05a_reels',
         reelB: 'vw_prop_casino_slot_05b_reels',
-        scriptRt: '05a',
         slotTheme: 5,
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
@@ -84,7 +78,6 @@ const availableSlots: { [key: number]: Slot } = {
         slotName: 'Twilight Knife',
         reelA: 'vw_prop_casino_slot_06a_reels',
         reelB: 'vw_prop_casino_slot_06b_reels',
-        scriptRt: '06a',
         slotTheme: 6,
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
@@ -95,18 +88,16 @@ const availableSlots: { [key: number]: Slot } = {
         slotName: 'Diamond Miner',
         reelA: 'vw_prop_casino_slot_07a_reels',
         reelB: 'vw_prop_casino_slot_07b_reels',
-        scriptRt: '07a',
         slotTheme: 7,
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
     },
-    [-487222358]: {
+    [3807744938]: {
         slotSound: 'dlc_vw_casino_slot_machine_hz_npc_sounds',
         slotTexture: 'CasinoUI_Slots_Evacuator',
         slotName: 'Evacuator',
         reelA: 'vw_prop_casino_slot_08a_reels',
         reelB: 'vw_prop_casino_slot_08b_reels',
-        scriptRt: '08a',
         slotTheme: 8,
         missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
         betAmounts: [50, 100, 150, 250, 500]
@@ -131,16 +122,24 @@ alt.on('connectionComplete', () => {
 alt.on('keyup', (key: alt.KeyCode) => {
     if (key != 69) return;
 
+    if (closestSlot == null ||
+        closestSlotModel == null || 
+        closestSlotCoord == null ||
+        closestSlotRotation == null
+        ) return; 
+
     alt.emitServerRaw('serverSlots:enterSlot', closestSlotCoord);
 });
 
 alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: number) => {
+    if (closestSlot != null) closestSlot = null;
+    if (closestSlotCoord != null) closestSlot = null;
+    if (closestSlotRotation != null) closestSlot = null;
+    if (closestSlotModel != null) closestSlot = null;
+
     closestSlot = native.getClosestObjectOfType(slotPosition.x, slotPosition.y, slotPosition.z, 1.2, slotModel, false, false, false);
 
-    if (closestSlot == 0) {
-        alt.logDebug("closestSlot = 0. Return.");
-        return;
-    };
+    if (closestSlot == 0) return;
 
     closestSlotCoord = native.getEntityCoords(closestSlot, false);
     closestSlotRotation = native.getEntityRotation(closestSlot, 2);
@@ -151,14 +150,15 @@ alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: n
     };
 
     drawInterval = alt.setInterval(() => {
-        drawText(closestSlotCoord, "~o~E~w~ - Play " + availableSlots[slotModel].slotName);
+        drawText(closestSlotCoord, "~b~E~w~ - Play " + availableSlots[slotModel].slotName);
     }, 0);
 });
 
 alt.onServer('clientSlots:resetClosestSlot', () => {
-    closestSlot = null;
-    closestSlotCoord = null;
-    closestSlotModel = null;
+    if (closestSlot != null) closestSlot = null;
+    if (closestSlotCoord != null) closestSlot = null;
+    if (closestSlotRotation != null) closestSlot = null;
+    if (closestSlotModel != null) closestSlot = null;
 
     if (drawInterval != null) {
         alt.clearInterval(drawInterval);
@@ -241,6 +241,7 @@ alt.onServer('clientSlots:enterSlot', async () => {
     );
 
     native.networkStartSynchronisedScene(idleScene);
+    hintText('Spin ~INPUT_JUMP~ \t Leave ~INPUT_FRONTEND_RRIGHT~');
 });
 
 function playSlotSound(audioName: string): void {
@@ -257,13 +258,19 @@ function drawText(coords: alt.Vector3, text: string): void {
     native.beginTextCommandDisplayText("STRING");
     native.setTextCentre(true);
     native.addTextComponentSubstringPlayerName(text);
-    native.setDrawOrigin(coords.x, coords.y, coords.z, false);
+    native.setDrawOrigin(coords.x, coords.y, coords.z + 1, false);
     native.endTextCommandDisplayText(0.0, 0.0, 0);
 
     const lenghtFactor = text.length / 370;
 
     native.drawRect(0.0, 0.0 + 0.0125, 0.017 + lenghtFactor, 0.03, 0, 0, 0, 75, false);
     native.clearDrawOrigin();
+};
+
+function hintText(hintText) {
+    native.beginTextCommandDisplayHelp("STRING");
+    native.addTextComponentSubstringPlayerName(hintText);
+    native.endTextCommandDisplayHelp(0, true, true, -1);
 };
 
 async function startIdleScene(currentAnimation: string): Promise<void> {
