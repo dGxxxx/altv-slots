@@ -1,6 +1,8 @@
 import * as alt from 'alt-client';
 import * as native from 'natives';
 
+import { availableSlots } from '../shared/startup.js';
+
 const casinoIpls: string[] = [ 'hei_dlc_windows_casino', 'hei_dlc_casino_aircon', 'vw_dlc_casino_door', 'hei_dlc_casino_door', 'vw_casino_main' ];
 const randomIdle: string[] = ['base_idle_a', 'base_idle_b', 'base_idle_c', 'base_idle_d', 'base_idle_e', 'base_idle_f'];
 const randomEnter: string[] = ['enter_left', 'enter_right', 'enter_left_short', 'enter_right_short'];
@@ -12,101 +14,14 @@ let closestSlotModel: number | null = null;
 let closestSlotCoord: alt.Vector3 | null = null;
 let closestSlotRotation: alt.Vector3 | null = null;
 
+let reelLocation1: alt.Vector3 | null = null;
+let reelLocation2: alt.Vector3 | null = null;
+let reelLocation3: alt.Vector3 | null = null;
+
 let drawInterval: number | null = null;
 let animDict: string = 'anim_casino_a@amb@casino@games@slots@male';
 let isSeatedAtSlot: boolean = false;
 let isSpinning: boolean = false;
-
-interface Slot {
-    slotSound: string;
-    slotTexture: string;
-    slotName: string;
-    reelA: string;
-    reelB: string;
-    slotTheme?: number;
-    missChance: number;
-    betAmounts: number[];
-};
-
-const availableSlots: { [key: number]: Slot } = {
-    [2362925439]: {
-        slotSound: 'dlc_vw_casino_slot_machine_ak_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Angel',
-        slotName: 'Angel And The Knight',
-        reelA: 'vw_prop_casino_slot_01a_reels',
-        reelB: 'vw_prop_casino_slot_01b_reels',
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    },
-    [2775323096]: {
-        slotSound: 'dlc_vw_casino_slot_machine_ir_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Impotent',
-        slotName: 'Impotent Rage',
-        reelA: 'vw_prop_casino_slot_02a_reels',
-        reelB: 'vw_prop_casino_slot_02b_reels',
-        slotTheme: 2,
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    },
-    [3863977906]: {
-        slotSound: 'dlc_vw_casino_slot_machine_rsr_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Ranger',
-        slotName: 'Republican Space Rangers',
-        reelA: 'vw_prop_casino_slot_03a_reels',
-        reelB: 'vw_prop_casino_slot_03b_reels',
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    },
-    [654385216]: {
-        slotSound: 'dlc_vw_casino_slot_machine_fs_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Fame',
-        slotName: 'Fame Or Shame',
-        reelA: 'vw_prop_casino_slot_04a_reels',
-        reelB: 'vw_prop_casino_slot_04b_reels',
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    },
-    [161343630]: {
-        slotSound: 'dlc_vw_casino_slot_machine_ds_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Deity',
-        slotName: 'Deity Of The Sun',
-        reelA: 'vw_prop_casino_slot_05a_reels',
-        reelB: 'vw_prop_casino_slot_05b_reels',
-        slotTheme: 5,
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    },
-    [1096374064]: {
-        slotSound: 'dlc_vw_casino_slot_machine_kd_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Knife',
-        slotName: 'Twilight Knife',
-        reelA: 'vw_prop_casino_slot_06a_reels',
-        reelB: 'vw_prop_casino_slot_06b_reels',
-        slotTheme: 6,
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    },
-    [207578973]: {
-        slotSound: 'dlc_vw_casino_slot_machine_td_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Diamond',
-        slotName: 'Diamond Miner',
-        reelA: 'vw_prop_casino_slot_07a_reels',
-        reelB: 'vw_prop_casino_slot_07b_reels',
-        slotTheme: 7,
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    },
-    [3807744938]: {
-        slotSound: 'dlc_vw_casino_slot_machine_hz_npc_sounds',
-        slotTexture: 'CasinoUI_Slots_Evacuator',
-        slotName: 'Evacuator',
-        reelA: 'vw_prop_casino_slot_08a_reels',
-        reelB: 'vw_prop_casino_slot_08b_reels',
-        slotTheme: 8,
-        missChance: Math.floor(Math.random() * (40 - 10 + 1)) + 10,
-        betAmounts: [50, 100, 150, 250, 500]
-    }
-};
 
 alt.on('connectionComplete', () => {
     for (let i = 0; i < casinoIpls.length; i++) {
@@ -114,6 +29,7 @@ alt.on('connectionComplete', () => {
         const isIplLoaded = native.isIplActive(casinoIpl);
         if (isIplLoaded) continue;
 
+        alt.log('1231231');
         alt.requestIpl(casinoIpl);
     };
 
@@ -122,6 +38,10 @@ alt.on('connectionComplete', () => {
 	native.requestScriptAudioBank("DLC_VINEWOOD\\CASINO_SLOT_MACHINES_03", false, 0);
 	native.requestScriptAudioBank("DLC_VINEWOOD\\CASINO_GENERAL", false, 0);
 });
+
+function degreesToRadians(degrees) {
+    return degrees * (Math.PI / 180);
+}
 
 alt.on('keyup', (key: alt.KeyCode) => {
     if (key != 69) return;
@@ -134,7 +54,29 @@ alt.on('keyup', (key: alt.KeyCode) => {
     
     if (isSeatedAtSlot) return;
 
-    alt.emitServerRaw('serverSlots:enterSlot', closestSlotCoord);
+    let slotHeading = native.getEntityHeading(closestSlot);
+
+    reelLocation1 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), -0.115, 0.047, 0.906)
+    reelLocation2 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.005, 0.047, 0.906)
+    reelLocation3 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.125, 0.047, 0.906)
+
+    let localObject1 = native.createObject(alt.hash(availableSlots[closestSlotModel].reelA), reelLocation1.x, reelLocation1.y, reelLocation1.z, false, false, false);
+    let localObject2 = native.createObject(alt.hash(availableSlots[closestSlotModel].reelA), reelLocation2.x, reelLocation2.y, reelLocation2.z, false, false, false);
+    let localObject3 = native.createObject(alt.hash(availableSlots[closestSlotModel].reelA), reelLocation3.x, reelLocation3.y, reelLocation3.z, false, false, false);
+
+    native.setEntityHeading(localObject1, slotHeading);
+    native.setEntityHeading(localObject2, slotHeading);
+    native.setEntityHeading(localObject3, slotHeading);
+
+    let localObjectCoords1 = native.getEntityCoords(localObject1, false);
+    let localObjectCoords2 = native.getEntityCoords(localObject2, false);
+    let localObjectCoords3 = native.getEntityCoords(localObject3, false);
+
+    alt.emitServerRaw('serverSlots:enterSlot', closestSlotCoord, localObjectCoords1, localObjectCoords2, localObjectCoords3, closestSlotModel, slotHeading);
+
+    native.deleteEntity(localObject1);
+    native.deleteEntity(localObject2);
+    native.deleteEntity(localObject3);
 });
 
 alt.on('keyup', (key: alt.KeyCode) => {
@@ -150,6 +92,16 @@ alt.on('keyup', (key: alt.KeyCode) => {
     if (isSpinning) return;
 
     alt.emitServerRaw('serverSlots:spinSlot');
+});
+
+alt.onServer('clientSlot:betterPositioning', async (reelEntity1: alt.Object, reelEntity2: alt.Object, reelEntity3: alt.Object, reelLocation1: alt.Vector3, reelLocation2: alt.Vector3, reelLocation3:alt.Vector3) => {
+    await alt.Utils.waitFor(() => reelEntity1.isSpawned);
+    await alt.Utils.waitFor(() => reelEntity2.isSpawned);
+    await alt.Utils.waitFor(() => reelEntity3.isSpawned);
+
+    native.setEntityCoords(reelEntity1, reelLocation1.x, reelLocation1.y, reelLocation1.z, false, false, false, false);
+    native.setEntityCoords(reelEntity2, reelLocation2.x, reelLocation2.y, reelLocation2.z, false, false, false, false);
+    native.setEntityCoords(reelEntity3, reelLocation3.x, reelLocation3.y, reelLocation3.z, false, false, false, false);
 });
 
 alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: number) => {

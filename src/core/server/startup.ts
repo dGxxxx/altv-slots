@@ -1,5 +1,7 @@
 import * as alt from 'alt-server';
 
+import { availableSlots } from '../shared/startup.js';
+
 declare module 'alt-server' {
     export interface Player {
         closestSlot: Slot | null;
@@ -75,6 +77,10 @@ const availableSlotPosition: Slot[]= [
     { slotPosition: new alt.Vector3(1129.6400146484375, 250.45098876953125, -52.04094314575195), slotModel: 3807744938 },
 ];
 
+function degreesToRadians(degrees) {
+    return degrees * (Math.PI / 180);
+}
+
 let slotColshapes: Map<number, Slot> = new Map();
 
 alt.on('requestSyncedScene', (player, sceneID) => {
@@ -146,13 +152,32 @@ alt.on('entityLeaveColshape', (colshape: alt.Colshape, entity: alt.Entity) => {
     player.emitRaw("clientSlots:resetClosestSlot");
 });
 
-alt.onClient('serverSlots:enterSlot', (player: alt.Player, clientSlotPosition: alt.Vector3) => {
+alt.onClient('serverSlots:enterSlot', (player: alt.Player, clientSlotPosition: alt.Vector3, reelLocation1: alt.Vector3, reelLocation2: alt.Vector3, reelLocation3: alt.Vector3, slotModel: number, slotHeading: number) => {
     if (player.closestSlot == null) return;
     if (player.seatedSlot) return;
 
     let distanceCheck = clientSlotPosition.distanceTo(player.closestSlot.slotPosition);
     if (distanceCheck > 1) return;
 
+    if (reelLocation1.distanceTo(player.closestSlot.slotPosition) > 2 ||
+        reelLocation2.distanceTo(player.closestSlot.slotPosition) > 2 ||
+        reelLocation3.distanceTo(player.closestSlot.slotPosition) > 2
+    ) return;
+
+    let reelEntity1 = new alt.Object(availableSlots[slotModel].reelA, reelLocation1, new alt.Vector3(0, 0, degreesToRadians(slotHeading)));
+    let reelEntity2 = new alt.Object(availableSlots[slotModel].reelA, reelLocation2, new alt.Vector3(0, 0, degreesToRadians(slotHeading)));
+    let reelEntity3 = new alt.Object(availableSlots[slotModel].reelA, reelLocation3, new alt.Vector3(0, 0, degreesToRadians(slotHeading)));
+
+    reelEntity1.frozen = true;
+    reelEntity2.frozen = true;
+    reelEntity3.frozen = true;
+
+    reelEntity1.setNetOwner(player, true);
+    reelEntity2.setNetOwner(player, true);
+    reelEntity3.setNetOwner(player, true);
+
+    reelEntity1.netOwner.emitRaw('clientSlot:betterPositioning', reelEntity1, reelEntity2, reelEntity3, reelLocation1, reelLocation2, reelLocation3);
+    
     player.seatedSlot = player.closestSlot;
     player.emitRaw("clientSlots:enterSlot");
 
