@@ -9,18 +9,12 @@ declare module 'alt-server' {
     }
 };
 
-declare module 'alt-server' {
-    export interface ColshapeCircle {
-        slotColshape: boolean;
-    }
-};
-
-interface Slot {
+interface SlotInformation {
     slotPosition: alt.Vector3;
     slotModel: number;
 };
 
-const availableSlotPosition: Slot[]= [
+const availableSlotPosition: SlotInformation[]= [
     { slotPosition: new alt.Vector3(1100.4827880859375, 230.40823364257812, -50.840919494628906), slotModel: 654385216 },
     { slotPosition: new alt.Vector3(1100.93896484375, 231.0016632080078, -50.840919494628906), slotModel: 161343630 },
     { slotPosition: new alt.Vector3(1101.220947265625, 231.69427490234375, -50.840919494628906), slotModel: 1096374064 },
@@ -79,7 +73,9 @@ const availableSlotPosition: Slot[]= [
 
 function degreesToRadians(degrees) {
     return degrees * (Math.PI / 180);
-}
+};
+
+let serverSlots: Slot[] = [];
 
 let slotColshapes: Map<number, Slot> = new Map();
 
@@ -99,14 +95,63 @@ alt.on('updateSyncedScene', (player, sceneID, startRate) => {
     return true;
 });
 
+class Slot {
+    slotModel: number | null;
+    slotPosition: alt.Vector3 | null;
+    slotColshape: alt.ColshapeCircle | null;
+    slotHeading: number | null;
+    slotReelLocation1: alt.Vector3 | null;
+    slotReelLocation2: alt.Vector3 | null;
+    slotReelLocation3: alt.Vector3 | null;
+
+    isOccupied: boolean;
+    occupiedBy: alt.Player | null;
+    playersInRange: alt.Player[];
+
+    reelObject1: alt.Object | null;
+    reelObject2: alt.Object | null;
+    reelObject3: alt.Object | null;
+
+    reelBlurryObject1: alt.Object | null;
+    reelBlurryObject2: alt.Object | null;
+    reelBlurryObject3: alt.Object | null;
+
+    constructor(slotPosition, slotModel) {
+        this.slotPosition = slotPosition;
+        this.slotModel = slotModel;
+
+        this.slotColshape = new alt.ColshapeCircle(this.slotPosition.x, this.slotPosition.y, 1.5);
+        this.slotColshape.playersOnly = true;
+
+        this.slotHeading = null;
+        this.slotReelLocation1 = null;
+        this.slotReelLocation2 = null;
+        this.slotReelLocation3 = null;
+
+        this.isOccupied = null;
+        this.occupiedBy = null;
+        this.playersInRange = null;
+
+        this.reelObject1 = null;
+        this.reelObject2 = null;
+        this.reelObject3 = null;
+
+        this.reelBlurryObject1 = null;
+        this.reelBlurryObject2 = null;
+        this.reelBlurryObject3 = null;
+    }
+
+    playerInRange() {
+
+    }
+};
+
 alt.on('resourceStart', (isErrored: boolean) => {
     for (let index = 0; index < availableSlotPosition.length; index++) {
         const availableSlot = availableSlotPosition[index];
         
-        let slotColshape = new alt.ColshapeCircle(availableSlot.slotPosition.x, availableSlot.slotPosition.y, 1.5);
-        slotColshape.slotColshape = true;
-
-        slotColshapes.set(slotColshape.id, availableSlot);
+        let serverSlot = new Slot(availableSlot.slotPosition, availableSlot.slotModel);
+        serverSlots.push(serverSlot);
     };
 });
 
@@ -198,6 +243,7 @@ alt.onClient('serverSlots:spinSlot', (player: alt.Player) => {
 
     let distanceCheck = player.pos.distanceTo(player.closestSlot.slotPosition);
     if (distanceCheck > 3) return;
+
 
 
     player.emitRaw("clientSlots:spinSlot")
