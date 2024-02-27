@@ -14,14 +14,16 @@ let closestSlotModel: number | null = null;
 let closestSlotCoord: alt.Vector3 | null = null;
 let closestSlotRotation: alt.Vector3 | null = null;
 
-let reelLocation1: alt.Vector3 | null = null;
-let reelLocation2: alt.Vector3 | null = null;
-let reelLocation3: alt.Vector3 | null = null;
-
 let drawInterval: number | null = null;
 let animDict: string = 'anim_casino_a@amb@casino@games@slots@male';
-let isSeatedAtSlot: boolean = false;
-let isSpinning: boolean = false;
+
+function degreesToRadians(degrees: number) {
+    return degrees * (Math.PI / 180);
+};
+
+function getRandomInt(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+};
 
 alt.on('connectionComplete', () => {
     for (let i = 0; i < casinoIpls.length; i++) {
@@ -29,7 +31,6 @@ alt.on('connectionComplete', () => {
         const isIplLoaded = native.isIplActive(casinoIpl);
         if (isIplLoaded) continue;
 
-        alt.log('1231231');
         alt.requestIpl(casinoIpl);
     };
 
@@ -39,10 +40,6 @@ alt.on('connectionComplete', () => {
 	native.requestScriptAudioBank("DLC_VINEWOOD\\CASINO_GENERAL", false, 0);
 });
 
-function degreesToRadians(degrees) {
-    return degrees * (Math.PI / 180);
-}
-
 alt.on('keyup', (key: alt.KeyCode) => {
     if (key != 69) return;
 
@@ -51,32 +48,26 @@ alt.on('keyup', (key: alt.KeyCode) => {
         closestSlotCoord == null ||
         closestSlotRotation == null
         ) return; 
-    
-    if (isSeatedAtSlot) return;
 
     let slotHeading = native.getEntityHeading(closestSlot);
 
-    reelLocation1 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), -0.115, 0.047, 0.906)
-    reelLocation2 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.005, 0.047, 0.906)
-    reelLocation3 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.125, 0.047, 0.906)
+    let reelLocation1 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), -0.115, 0.047, 0.906)
+    let reelLocation2 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.005, 0.047, 0.906)
+    let reelLocation3 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.125, 0.047, 0.906)
 
-    let localObject1 = native.createObject(alt.hash(availableSlots[closestSlotModel].reelA), reelLocation1.x, reelLocation1.y, reelLocation1.z, false, false, false);
-    let localObject2 = native.createObject(alt.hash(availableSlots[closestSlotModel].reelA), reelLocation2.x, reelLocation2.y, reelLocation2.z, false, false, false);
-    let localObject3 = native.createObject(alt.hash(availableSlots[closestSlotModel].reelA), reelLocation3.x, reelLocation3.y, reelLocation3.z, false, false, false);
+    let clientObject1 = new alt.LocalObject(availableSlots[closestSlotModel].reelA, reelLocation1, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+    let clientObject2 = new alt.LocalObject(availableSlots[closestSlotModel].reelA, reelLocation2, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+    let clientObject3 = new alt.LocalObject(availableSlots[closestSlotModel].reelA, reelLocation3, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
 
-    native.setEntityHeading(localObject1, slotHeading);
-    native.setEntityHeading(localObject2, slotHeading);
-    native.setEntityHeading(localObject3, slotHeading);
+    let localObjPos1 = clientObject1.pos;
+    let localObjPos2 = clientObject2.pos;
+    let localObjPos3 = clientObject3.pos;
 
-    let localObjectCoords1 = native.getEntityCoords(localObject1, false);
-    let localObjectCoords2 = native.getEntityCoords(localObject2, false);
-    let localObjectCoords3 = native.getEntityCoords(localObject3, false);
+    clientObject1.destroy();
+    clientObject2.destroy();
+    clientObject3.destroy();
 
-    alt.emitServerRaw('serverSlots:enterSlot', closestSlotCoord, localObjectCoords1, localObjectCoords2, localObjectCoords3, closestSlotModel, slotHeading);
-
-    native.deleteEntity(localObject1);
-    native.deleteEntity(localObject2);
-    native.deleteEntity(localObject3);
+    alt.emitServerRaw('serverSlots:enterSlot', slotHeading, localObjPos1, localObjPos2, localObjPos3);
 });
 
 alt.on('keyup', (key: alt.KeyCode) => {
@@ -87,21 +78,18 @@ alt.on('keyup', (key: alt.KeyCode) => {
         closestSlotCoord == null ||
         closestSlotRotation == null
         ) return; 
-    
-    if (!isSeatedAtSlot) return;
-    if (isSpinning) return;
 
     alt.emitServerRaw('serverSlots:spinSlot');
 });
 
-alt.onServer('clientSlot:betterPositioning', async (reelEntity1: alt.Object, reelEntity2: alt.Object, reelEntity3: alt.Object, reelLocation1: alt.Vector3, reelLocation2: alt.Vector3, reelLocation3:alt.Vector3) => {
-    await alt.Utils.waitFor(() => reelEntity1.isSpawned);
-    await alt.Utils.waitFor(() => reelEntity2.isSpawned);
-    await alt.Utils.waitFor(() => reelEntity3.isSpawned);
+alt.onServer('clientSlot:positionReels', async (reelObject1: alt.Object, reelObject2: alt.Object, reelObject3: alt.Object, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3:alt.Vector3) => {
+    await alt.Utils.waitFor(() => reelObject1.isSpawned);
+    await alt.Utils.waitFor(() => reelObject2.isSpawned);
+    await alt.Utils.waitFor(() => reelObject3.isSpawned);
 
-    native.setEntityCoords(reelEntity1, reelLocation1.x, reelLocation1.y, reelLocation1.z, false, false, false, false);
-    native.setEntityCoords(reelEntity2, reelLocation2.x, reelLocation2.y, reelLocation2.z, false, false, false, false);
-    native.setEntityCoords(reelEntity3, reelLocation3.x, reelLocation3.y, reelLocation3.z, false, false, false, false);
+    native.setEntityCoords(reelObject1, slotReelLocation1.x, slotReelLocation1.y, slotReelLocation1.z, false, false, false, false);
+    native.setEntityCoords(reelObject2, slotReelLocation2.x, slotReelLocation2.y, slotReelLocation2.z, false, false, false, false);
+    native.setEntityCoords(reelObject3, slotReelLocation3.x, slotReelLocation3.y, slotReelLocation3.z, false, false, false, false);
 });
 
 alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: number) => {
@@ -111,7 +99,6 @@ alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: n
     if (closestSlotModel != null) closestSlot = null;
 
     closestSlot = native.getClosestObjectOfType(slotPosition.x, slotPosition.y, slotPosition.z, 1.2, slotModel, false, false, false);
-
     if (closestSlot == 0) return;
 
     closestSlotCoord = native.getEntityCoords(closestSlot, false);
@@ -127,15 +114,11 @@ alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: n
     }, 0);
 });
 
-alt.onServer('clientSlots:spinSlot', async () => {
+alt.onServer('clientSlot:spinSlot', async (reelObject1: alt.Object, reelObject2: alt.Object, reelObject3: alt.Object) => {
     if (closestSlot == null ||
         closestSlotCoord == null ||
         closestSlotModel == null ||
         closestSlotRotation == null) return;
-
-    if (!isSeatedAtSlot) return;
-    
-    isSpinning = true;
 
     const spinScene = native.networkCreateSynchronisedScene(
         closestSlotCoord.x,
@@ -170,78 +153,8 @@ alt.onServer('clientSlots:spinSlot', async () => {
 
     native.networkStartSynchronisedScene(spinScene);
 
-    const animationDuration = native.getAnimDuration(animDict, randomAnimName);
-
-    let leverScene;
-
-    if (randomAnimName === 'pull_spin_a') {
-        leverScene = native.networkCreateSynchronisedScene(
-            closestSlotCoord.x,
-            closestSlotCoord.y,
-            closestSlotCoord.z,
-            closestSlotRotation.x,
-            closestSlotRotation.y,
-            closestSlotRotation.z,
-            2,
-            true,
-            false,
-            1.0,
-            0,
-            1.0
-        );
-
-        native.networkAddMapEntityToSynchronisedScene(
-            leverScene,
-            native.getEntityModel(closestSlot),
-            closestSlotCoord.x,
-            closestSlotCoord.y,
-            closestSlotCoord.z,
-            2.0,
-            'pull_spin_a_SLOTMACHINE',
-            2.0,
-            -1.5,
-            13.0
-        );
-
-        native.networkStartSynchronisedScene(leverScene);
-        await alt.Utils.wait(animationDuration * 320);
-    } else if (randomAnimName === 'pull_spin_b') {
-        leverScene = native.networkCreateSynchronisedScene(
-            closestSlotCoord.x,
-            closestSlotCoord.y,
-            closestSlotCoord.z,
-            closestSlotRotation.x,
-            closestSlotRotation.y,
-            closestSlotRotation.z,
-            2,
-            true,
-            false,
-            1.0,
-            0,
-            1.0
-        );
-
-        native.networkAddMapEntityToSynchronisedScene(
-            leverScene,
-            native.getEntityModel(closestSlot),
-            closestSlotCoord.x,
-            closestSlotCoord.y,
-            closestSlotCoord.z,
-            2.0,
-            'pull_spin_b_SLOTMACHINE',
-            2.0,
-            -1.5,
-            13.0
-        );
-
-        native.networkStartSynchronisedScene(leverScene);
-        await alt.Utils.wait(animationDuration * 320);
-    };
-
-    await alt.Utils.wait(animationDuration * 180);
     playSlotSound('start_spin');
 
-    await alt.Utils.wait(animationDuration * 500);
     const spinningScene = native.networkCreateSynchronisedScene(
         closestSlotCoord.x,
         closestSlotCoord.y,
@@ -273,8 +186,32 @@ alt.onServer('clientSlots:spinSlot', async () => {
 
     native.networkStartSynchronisedScene(spinningScene);
 
-    if (leverScene != null) native.networkStopSynchronisedScene(leverScene);
-    native.freezeEntityPosition(closestSlot, true);
+    await alt.Utils.waitFor(() => reelObject1.isSpawned);
+    await alt.Utils.waitFor(() => reelObject2.isSpawned);
+    await alt.Utils.waitFor(() => reelObject3.isSpawned);
+
+    const tempRot1 = reelObject1.rot;
+    const tempRot2 = reelObject2.rot;
+    const tempRot3 = reelObject3.rot;
+
+    reelObject1.rot = new alt.Vector3(tempRot1.x + degreesToRadians(getRandomInt(0, 360) - 180), tempRot1.y, tempRot1.z);
+    reelObject2.rot = new alt.Vector3(tempRot2.x + degreesToRadians(getRandomInt(0, 360) - 180), tempRot2.y, tempRot2.z);
+    reelObject3.rot = new alt.Vector3(tempRot3.x + degreesToRadians(getRandomInt(0, 360) - 180), tempRot3.y, tempRot3.z);
+
+    for (let i = 1; i <= 300; i++) {
+        let oRot1 = reelObject1.rot;
+        let oRot2 = reelObject2.rot;
+        let oRot3 = reelObject3.rot;
+
+        if (i < 180) {
+            alt.log('1');
+            reelObject1.rot = new alt.Vector3(oRot1.x + degreesToRadians(getRandomInt(40, 100) / 10), oRot1.y, oRot1.z);
+        } else if (i == 180) {
+
+        };
+
+        await alt.Utils.wait(10);
+    };
 });
 
 alt.onServer('clientSlots:resetClosestSlot', () => {
@@ -291,11 +228,11 @@ alt.onServer('clientSlots:resetClosestSlot', () => {
 
 alt.onServer('clientSlots:enterSlot', async () => {
     if (closestSlot == null ||
+        closestSlotModel == null || 
         closestSlotCoord == null ||
-        closestSlotModel == null ||
-        closestSlotRotation == null) return;
-    
-    isSeatedAtSlot = true;
+        closestSlotRotation == null
+        ) return; 
+
 
     if (alt.hash('mp_f_freemode_01') === alt.Player.local.model) {
         animDict = 'anim_casino_a@amb@casino@games@slots@female';

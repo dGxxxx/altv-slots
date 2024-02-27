@@ -1,13 +1,5 @@
 import * as alt from 'alt-server';
-
 import { availableSlots } from '../shared/startup.js';
-
-declare module 'alt-server' {
-    export interface Player {
-        closestSlot: Slot | null;
-        seatedSlot: Slot | null;
-    }
-};
 
 interface SlotInformation {
     slotPosition: alt.Vector3;
@@ -71,13 +63,15 @@ const availableSlotPosition: SlotInformation[]= [
     { slotPosition: new alt.Vector3(1129.6400146484375, 250.45098876953125, -52.04094314575195), slotModel: 3807744938 },
 ];
 
-function degreesToRadians(degrees) {
+function degreesToRadians(degrees: number) {
     return degrees * (Math.PI / 180);
 };
 
-let serverSlots: Slot[] = [];
+function getRandomInt(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+};
 
-let slotColshapes: Map<number, Slot> = new Map();
+let serverSlots: Slot[] = [];
 
 alt.on('requestSyncedScene', (player, sceneID) => {
     return true;
@@ -104,7 +98,6 @@ class Slot {
     slotReelLocation2: alt.Vector3 | null;
     slotReelLocation3: alt.Vector3 | null;
 
-    isOccupied: boolean;
     occupiedBy: alt.Player | null;
     playersInRange: alt.Player[];
 
@@ -128,9 +121,8 @@ class Slot {
         this.slotReelLocation2 = null;
         this.slotReelLocation3 = null;
 
-        this.isOccupied = null;
         this.occupiedBy = null;
-        this.playersInRange = null;
+        this.playersInRange = [];
 
         this.reelObject1 = null;
         this.reelObject2 = null;
@@ -141,9 +133,143 @@ class Slot {
         this.reelBlurryObject3 = null;
     }
 
-    playerInRange() {
+    enterRange(slotPlayer: alt.Player) {
+        let isPlayingAlready = serverSlots.find(serverSlot => serverSlot.occupiedBy == slotPlayer);
+        if (isPlayingAlready) return;
 
-    }
+        let inAnotherRange = serverSlots.find(serverSlot => serverSlot.playersInRange.includes(slotPlayer));
+        if (inAnotherRange) return;
+
+        let alreadyInRange = this.playersInRange.find(rangePlayer => rangePlayer == slotPlayer);
+        if (alreadyInRange) return;
+
+        this.playersInRange.push(slotPlayer);
+        slotPlayer.emitRaw('clientSlots:closestSlot', this.slotPosition, this.slotModel);
+    };
+
+    leaveRange(slotPlayer: alt.Player) {
+        let rangePlayerIndex = this.playersInRange.findIndex(rangePlayer => rangePlayer == slotPlayer);
+        if (rangePlayerIndex == -1) return;
+
+        this.playersInRange.splice(rangePlayerIndex, 1);
+        slotPlayer.emitRaw('clientSlots:resetClosestSlot', this.slotPosition, this.slotModel);
+    };
+
+    sitPlayer(slotPlayer: alt.Player, slotHeading: number, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3: alt.Vector3) {
+        if (this.occupiedBy != null) return;
+
+        let isPlayingAlready = serverSlots.find(serverSlot => serverSlot.occupiedBy == slotPlayer);
+        if (isPlayingAlready) return;
+
+        let playerDistance = slotPlayer.pos.distanceTo(this.slotPosition);
+        if (playerDistance > 2) return;
+
+        let reelDistance1 = slotReelLocation1.distanceTo(this.slotPosition);
+        if (reelDistance1 > 2) return;
+
+        let reelDistance2 = slotReelLocation2.distanceTo(this.slotPosition);
+        if (reelDistance2 > 2) return;
+
+        let reelDistance3 = slotReelLocation3.distanceTo(this.slotPosition);
+        if (reelDistance3 > 2) return;
+
+        this.slotHeading = degreesToRadians(slotHeading);
+
+        if (this.reelObject1 != null) {
+            if (this.reelObject1.valid) {
+                this.reelObject1.destroy();
+                this.reelObject1 = null;
+            };
+        };
+
+        if (this.reelObject2 != null) {
+            if (this.reelObject2.valid) {
+                this.reelObject2.destroy();
+                this.reelObject2 = null;
+            };
+        };
+
+        if (this.reelObject3 != null) {
+            if (this.reelObject3.valid) {
+                this.reelObject3.destroy();
+                this.reelObject3 = null;
+            };
+        };
+
+        this.occupiedBy = slotPlayer;
+
+        this.slotReelLocation1 = slotReelLocation1;
+        this.slotReelLocation2 = slotReelLocation2;
+        this.slotReelLocation3 = slotReelLocation3;
+
+        this.reelObject1 = new alt.Object(availableSlots[this.slotModel].reelA, this.slotReelLocation1, new alt.Vector3(0, 0, this.slotHeading));
+        this.reelObject2 = new alt.Object(availableSlots[this.slotModel].reelA, this.slotReelLocation2, new alt.Vector3(0, 0, this.slotHeading));
+        this.reelObject3 = new alt.Object(availableSlots[this.slotModel].reelA, this.slotReelLocation3, new alt.Vector3(0, 0, this.slotHeading));
+
+        this.reelObject1.setNetOwner(this.occupiedBy, true);
+        this.reelObject2.setNetOwner(this.occupiedBy, true);
+        this.reelObject3.setNetOwner(this.occupiedBy, true);
+
+        this.reelObject1.frozen = true;
+        this.reelObject2.frozen = true;
+        this.reelObject3.frozen = true;
+
+        this.occupiedBy.emitRaw('clientSlot:positionReels', this.reelObject1, this.reelObject2, this.reelObject3, this.slotReelLocation1, this.slotReelLocation2, this.slotReelLocation3);
+        this.occupiedBy.emitRaw('clientSlots:enterSlot');
+
+        this.playersInRange.forEach(rangePlayer => {
+            if (rangePlayer == this.occupiedBy) return;
+
+            let rangePlayerIndex = this.playersInRange.findIndex(player => player == rangePlayer);
+            this.playersInRange.splice(rangePlayerIndex, 1);
+
+            rangePlayer.emitRaw('clientSlots:resetClosestSlot');
+        });
+    };
+
+    async spinSlot(slotPlayer: alt.Player) {
+        if (this.occupiedBy != slotPlayer) return;
+
+        if (this.reelBlurryObject1 != null) {
+            if (this.reelBlurryObject1.valid) {
+                this.reelBlurryObject1.destroy();
+                this.reelBlurryObject1 = null;
+            };
+        };
+
+        if (this.reelBlurryObject2 != null) {
+            if (this.reelBlurryObject2.valid) {
+                this.reelBlurryObject2.destroy();
+                this.reelBlurryObject2 = null;
+            };
+        };
+
+        if (this.reelBlurryObject3 != null) {
+            if (this.reelBlurryObject3.valid) {
+                this.reelBlurryObject3.destroy();
+                this.reelBlurryObject3 = null;
+            };
+        };
+
+        this.reelBlurryObject1 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation1, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
+        this.reelBlurryObject2 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation2, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
+        this.reelBlurryObject3 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation3, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
+
+        this.reelBlurryObject1.setNetOwner(this.occupiedBy, true);
+        this.reelBlurryObject2.setNetOwner(this.occupiedBy, true);
+        this.reelBlurryObject3.setNetOwner(this.occupiedBy, true);
+
+        this.reelBlurryObject1.frozen = true;
+        this.reelBlurryObject2.frozen = true;
+        this.reelBlurryObject3.frozen = true;
+
+        await alt.Utils.waitFor(() => this.reelBlurryObject1.netOwner == slotPlayer);
+        await alt.Utils.waitFor(() => this.reelBlurryObject2.netOwner == slotPlayer);
+        await alt.Utils.waitFor(() => this.reelBlurryObject3.netOwner == slotPlayer);
+
+        this.occupiedBy.emitRaw('clientSlot:positionReels', this.reelBlurryObject1, this.reelBlurryObject2, this.reelBlurryObject3, this.slotReelLocation1, this.slotReelLocation2, this.slotReelLocation3);
+        this.occupiedBy.emitRaw('clientSlot:spinSlot', this.reelBlurryObject1, this.reelBlurryObject2, this.reelBlurryObject3);
+    };
 };
 
 alt.on('resourceStart', (isErrored: boolean) => {
@@ -160,93 +286,38 @@ alt.on('playerConnect', (player: alt.Player) => {
     player.spawn(1100.93896484375, 231.0016632080078, -50.840919494628906);
 });
 
+alt.onClient('serverSlots:enterSlot', (player: alt.Player, slotHeading: number, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3: alt.Vector3) => {
+    let closestPlayerSlot = serverSlots.find(serverSlot => serverSlot.playersInRange.includes(player));
+    if (!closestPlayerSlot) return;
+
+    closestPlayerSlot.sitPlayer(player, slotHeading, slotReelLocation1, slotReelLocation2, slotReelLocation3);
+});
+
+alt.onClient('serverSlots:spinSlot', (player: alt.Player) => {
+    let playerSlot = serverSlots.find(serverSlot => serverSlot.occupiedBy == player);
+    if (!playerSlot) return;
+
+    playerSlot.spinSlot(player);
+});
+
 alt.on('entityEnterColshape', (colshape: alt.Colshape, entity: alt.Entity) => {
     if (!(entity instanceof alt.Player)) return;
-    if (!(colshape instanceof alt.ColshapeCircle)) return;
-    if (!colshape.slotColshape) return;
-    
-    let slotInfo = slotColshapes.get(colshape.id);
-    if (!slotInfo) return;
 
-    let allPlayers = alt.Player.all;
-    let isAnyPlayerSeated = allPlayers.find(x => x.seatedSlot == slotInfo);
+    let foundSlot = serverSlots.find(serverSlot => serverSlot.slotColshape == colshape);
+    if (foundSlot == null) return;
 
-    if (isAnyPlayerSeated) return;
-
-    let player = alt.Player.getByID(entity.id);
-
-    if (player.seatedSlot != null) return;
-    if (player.closestSlot) return;
-
-    player.closestSlot = slotInfo;
-    player.emitRaw("clientSlots:closestSlot", slotInfo.slotPosition, slotInfo.slotModel);
+    let entityAsPlayer = entity as alt.Player;
+    foundSlot.enterRange(entityAsPlayer);
 });
 
 alt.on('entityLeaveColshape', (colshape: alt.Colshape, entity: alt.Entity) => {
     if (!(entity instanceof alt.Player)) return;
-    if (!(colshape instanceof alt.ColshapeCircle)) return;
-    if (!colshape.slotColshape) return;
-    
-    let player = alt.Player.getByID(entity.id);
-    if (player.seatedSlot != null) return;
-    if (!player.closestSlot) return;
 
-    player.closestSlot = null;
-    player.seatedSlot = null;
+    let foundSlot = serverSlots.find(serverSlot => serverSlot.slotColshape == colshape);
+    if (foundSlot == null) return;
 
-    player.emitRaw("clientSlots:resetClosestSlot");
-});
-
-alt.onClient('serverSlots:enterSlot', (player: alt.Player, clientSlotPosition: alt.Vector3, reelLocation1: alt.Vector3, reelLocation2: alt.Vector3, reelLocation3: alt.Vector3, slotModel: number, slotHeading: number) => {
-    if (player.closestSlot == null) return;
-    if (player.seatedSlot) return;
-
-    let distanceCheck = clientSlotPosition.distanceTo(player.closestSlot.slotPosition);
-    if (distanceCheck > 1) return;
-
-    if (reelLocation1.distanceTo(player.closestSlot.slotPosition) > 2 ||
-        reelLocation2.distanceTo(player.closestSlot.slotPosition) > 2 ||
-        reelLocation3.distanceTo(player.closestSlot.slotPosition) > 2
-    ) return;
-
-    let reelEntity1 = new alt.Object(availableSlots[slotModel].reelA, reelLocation1, new alt.Vector3(0, 0, degreesToRadians(slotHeading)));
-    let reelEntity2 = new alt.Object(availableSlots[slotModel].reelA, reelLocation2, new alt.Vector3(0, 0, degreesToRadians(slotHeading)));
-    let reelEntity3 = new alt.Object(availableSlots[slotModel].reelA, reelLocation3, new alt.Vector3(0, 0, degreesToRadians(slotHeading)));
-
-    reelEntity1.frozen = true;
-    reelEntity2.frozen = true;
-    reelEntity3.frozen = true;
-
-    reelEntity1.setNetOwner(player, true);
-    reelEntity2.setNetOwner(player, true);
-    reelEntity3.setNetOwner(player, true);
-
-    reelEntity1.netOwner.emitRaw('clientSlot:betterPositioning', reelEntity1, reelEntity2, reelEntity3, reelLocation1, reelLocation2, reelLocation3);
-    
-    player.seatedSlot = player.closestSlot;
-    player.emitRaw("clientSlots:enterSlot");
-
-    let allPlayers = alt.Player.all;
-
-    allPlayers.forEach(arrPlayer => {
-        if (arrPlayer.closestSlot != player.seatedSlot) return;
-        if (arrPlayer == player) return;
-
-        arrPlayer.closestSlot = null;
-        arrPlayer.emitRaw("clientSlots:resetClosestSlot");
-    });
-});
-
-alt.onClient('serverSlots:spinSlot', (player: alt.Player) => {
-    if (player.closestSlot == null) return;
-    if (player.seatedSlot == null) return;
-
-    let distanceCheck = player.pos.distanceTo(player.closestSlot.slotPosition);
-    if (distanceCheck > 3) return;
-
-
-
-    player.emitRaw("clientSlots:spinSlot")
+    let entityAsPlayer = entity as alt.Player;
+    foundSlot.leaveRange(entityAsPlayer);
 });
 
 
