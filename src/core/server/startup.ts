@@ -143,6 +143,8 @@ class Slot {
         let alreadyInRange = this.playersInRange.find(rangePlayer => rangePlayer == slotPlayer);
         if (alreadyInRange) return;
 
+        alt.log("enterRange")
+
         this.playersInRange.push(slotPlayer);
         slotPlayer.emitRaw('clientSlots:closestSlot', this.slotPosition, this.slotModel);
     };
@@ -150,6 +152,8 @@ class Slot {
     leaveRange(slotPlayer: alt.Player) {
         let rangePlayerIndex = this.playersInRange.findIndex(rangePlayer => rangePlayer == slotPlayer);
         if (rangePlayerIndex == -1) return;
+
+        alt.log("leaveRange")
 
         this.playersInRange.splice(rangePlayerIndex, 1);
         slotPlayer.emitRaw('clientSlots:resetClosestSlot', this.slotPosition, this.slotModel);
@@ -250,6 +254,10 @@ class Slot {
                 this.reelBlurryObject3 = null;
             };
         };
+
+        this.reelObject1.visible = false;
+        this.reelObject2.visible = false;
+        this.reelObject3.visible = false;
 
         this.reelBlurryObject1 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation1, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
         this.reelBlurryObject2 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation2, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
