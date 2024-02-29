@@ -214,14 +214,19 @@ alt.onServer('clientSlots:enterSlot', async () => {
         closestSlotRotation == null
         ) return; 
 
-
-    alt.log("enterSlot")
-
-
     if (alt.hash('mp_f_freemode_01') === alt.Player.local.model) {
         animDict = 'anim_casino_a@amb@casino@games@slots@female';
     };
 
+    if (!native.hasAnimDictLoaded(animDict)) {
+        await alt.Utils.requestAnimDict(animDict);
+    };
+
+    if (drawInterval != null) {
+        alt.clearInterval(drawInterval);
+    };
+
+    const soundId = native.getSoundId();
     const enterScene = native.networkCreateSynchronisedScene(
         closestSlotCoord.x,
         closestSlotCoord.y,
@@ -236,8 +241,6 @@ alt.onServer('clientSlots:enterSlot', async () => {
         0,
         1.0
     );
-
-    await alt.Utils.requestAnimDict(animDict);
 
     const randomAnimName = randomEnter[Math.floor(Math.random() * randomEnter.length)];
     native.networkAddPedToSynchronisedScene(
@@ -255,11 +258,13 @@ alt.onServer('clientSlots:enterSlot', async () => {
 
     native.networkStartSynchronisedScene(enterScene);
 
-    let animDuration = native.getAnimDuration(animDict, randomAnimName);
-    await alt.Utils.wait(animDuration * 1000);
+    native.playSoundFromCoord(soundId, 'welcome_stinger', closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, availableSlots[closestSlotModel].slotSound, false, 20, false);
+    native.releaseSoundId(soundId);
 
-    playSlotSound('welcome_stinger');
+    const animTime = native.getAnimDuration(animDict, randomAnimName);
+    await alt.Utils.wait(animTime * 1000);
 
+    const randomIdleAnim = randomIdle[Math.floor(Math.random() * randomIdle.length)];
     const idleScene = native.networkCreateSynchronisedScene(
         closestSlotCoord.x,
         closestSlotCoord.y,
@@ -275,9 +280,6 @@ alt.onServer('clientSlots:enterSlot', async () => {
         1.0
     );
 
-    await alt.Utils.requestAnimDict(animDict);
-    const randomIdleAnim = randomIdle[Math.floor(Math.random() * randomIdle.length)];
-
     native.networkAddPedToSynchronisedScene(
         alt.Player.local.scriptID,
         idleScene,
@@ -292,20 +294,7 @@ alt.onServer('clientSlots:enterSlot', async () => {
     );
 
     native.networkStartSynchronisedScene(idleScene);
-
-    if (drawInterval != null) {
-        alt.clearInterval(drawInterval);
-    };
-    
-    hintText('Spin ~INPUT_JUMP~ \t Leave ~INPUT_FRONTEND_RRIGHT~');
 });
-
-function playSlotSound(audioName: string): void {
-    const soundId = native.getSoundId();
-
-    native.playSoundFromCoord(soundId, audioName, closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, availableSlots[closestSlotModel].slotSound, false, 20, false);
-    native.releaseSoundId(soundId);
-}
 
 function drawText(coords: alt.Vector3, text: string): void {
     native.setTextScale(0.35, 0.35);
@@ -322,49 +311,3 @@ function drawText(coords: alt.Vector3, text: string): void {
     native.drawRect(0.0, 0.0 + 0.0125, 0.017 + lenghtFactor, 0.03, 0, 0, 0, 75, false);
     native.clearDrawOrigin();
 };
-
-function hintText(hintText) {
-    native.beginTextCommandDisplayHelp("STRING");
-    native.addTextComponentSubstringPlayerName(hintText);
-    native.endTextCommandDisplayHelp(0, true, true, -1);
-};
-
-async function startIdleScene(currentAnimation: string): Promise<void> {
-    const duration = native.getAnimDuration(animDict, currentAnimation) * 800;
-    await alt.Utils.wait(duration);
-
-    const idleScene = native.networkCreateSynchronisedScene(
-        closestSlotCoord.x,
-        closestSlotCoord.y,
-        closestSlotCoord.z,
-        closestSlotRotation.x,
-        closestSlotRotation.y,
-        closestSlotRotation.z,
-        2,
-        false,
-        true,
-        1.0,
-        0,
-        1.0
-    );
-
-    await alt.Utils.requestAnimDict(animDict);
-
-    const randomAnimName = randomIdle[Math.floor(Math.random() * randomIdle.length)];
-
-    native.networkAddPedToSynchronisedScene(
-        alt.Player.local,
-        idleScene,
-        animDict,
-        randomAnimName,
-        2.0,
-        -1.5,
-        13,
-        16,
-        2.0,
-        0
-    );
-
-    native.networkStartSynchronisedScene(idleScene);
-};
-
