@@ -16,6 +16,12 @@ let closestSlotRotation: alt.Vector3 | null = null;
 let drawInterval: number | null = null;
 let animDict: string = 'anim_casino_a@amb@casino@games@slots@male';
 
+interface Win {
+    firstReel: number;
+    secondReel: number;
+    thirdReel: number;
+};
+
 function degreesToRadians(degrees: number) {
     return degrees * (Math.PI / 180);
 };
@@ -126,7 +132,7 @@ alt.onServer('clientSlots:closestSlot', (slotPosition: alt.Vector3, slotModel: n
     }, 0);
 });
 
-alt.onServer('clientSlot:spinSlot', async (reelObject1: alt.Object, reelObject2: alt.Object, reelObject3: alt.Object) => {
+alt.onServer('clientSlot:spinSlot', async () => {
     if (closestSlot == null ||
         closestSlotCoord == null ||
         closestSlotModel == null ||
@@ -171,28 +177,6 @@ alt.onServer('clientSlot:spinSlot', async (reelObject1: alt.Object, reelObject2:
 
     native.playSoundFromCoord(soundId, 'start_spin', closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, availableSlots[closestSlotModel].slotSound, false, 20, false);
     native.releaseSoundId(soundId);
-
-    await alt.Utils.waitFor(() => reelObject1.isSpawned && reelObject2.isSpawned && reelObject3.isSpawned);
-
-    let slotHeading = native.getEntityHeading(closestSlot);
-
-    for (let i = 1; i <= 300; i++) {
-        let tempRot1 = native.getEntityRotation(reelObject1, 0);
-        let tempRot2 = native.getEntityRotation(reelObject2, 0);
-        let tempRot3 = native.getEntityRotation(reelObject3, 0);
-
-        native.setEntityHeading(reelObject1, slotHeading);
-        native.setEntityHeading(reelObject2, slotHeading);
-        native.setEntityHeading(reelObject3, slotHeading);
-
-        if (i < 180) {
-            native.setEntityRotation(reelObject1, tempRot1.x + (getRandomInt(0, 360) - 180), tempRot1.y, tempRot1.z, 0, false);
-        } else if (i == 180) {
-
-        };
-
-        await alt.Utils.wait(10);
-    };
 });
 
 alt.onServer('clientSlots:resetClosestSlot', () => {
