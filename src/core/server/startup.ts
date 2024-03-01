@@ -1,5 +1,5 @@
 import * as alt from 'alt-server';
-import { availableSlots } from '../shared/startup.js';
+import { availableSlots, winNumbers, winMultipliers } from '../shared/startup.js';
 
 interface SlotInformation {
     slotPosition: alt.Vector3;
@@ -330,7 +330,7 @@ class Slot {
                     this.reelBlurryObject1.visible = false;
                 };
 
-                this.reelObject1.rot = finalRot;
+                this.reelObject1.rot = new alt.Vector3(degreesToRadians(this.winNum.firstReel * 22.5 - 180), finalRot.y, finalRot.z);
                 this.reelObject1.visible = true;
             };
 
@@ -343,7 +343,7 @@ class Slot {
                     this.reelBlurryObject2.visible = false;
                 };
 
-                this.reelObject2.rot = finalRot;
+                this.reelObject2.rot = new alt.Vector3(degreesToRadians(this.winNum.secondReel * 22.5 - 180), finalRot.y, finalRot.z);
                 this.reelObject2.visible = true;
             };
 
@@ -356,12 +356,41 @@ class Slot {
                     this.reelBlurryObject3.visible = false;
                 };
 
-                this.reelObject3.rot = finalRot;
+                this.reelObject3.rot = new alt.Vector3(degreesToRadians(this.winNum.thirdReel * 22.5 - 180), finalRot.y, finalRot.z);
                 this.reelObject3.visible = true;
             };
     
-            await alt.Utils.wait(10);
+            await alt.Utils.wait(15);
         };
+
+        let totalWin: number = 0;
+
+        let aWin = winNumbers[this.winNum.firstReel];
+        let bWin = winNumbers[this.winNum.secondReel];
+        let cWin = winNumbers[this.winNum.thirdReel];
+
+        // 100 is a placeholder for the player's money. You will need to adjust this with your own script / gamemode.
+        if (aWin === bWin && bWin === cWin && aWin === cWin) {
+            if (winMultipliers[aWin]) {
+                totalWin = 100 * winMultipliers[aWin];
+            };
+        } else if (aWin === '6' && bWin === '6') {
+            totalWin = 100 * 5;
+        } else if (aWin === '6' && cWin === '6') {
+            totalWin = 100 * 5;
+        } else if (bWin === '6' && cWin === '6') {
+            totalWin = 100 * 5;
+        } else if (aWin === '6') {
+            totalWin = 100 * 2;
+        } else if (bWin === '6') {
+            totalWin = 100 * 2;
+        } else if (cWin === '6') {
+            totalWin = 100 * 2;
+        };
+
+        var isWin = totalWin > 0 ? true : false;
+        
+        this.occupiedBy.emitRaw('clientSlot:spinFinished', isWin);
     };
 };
 

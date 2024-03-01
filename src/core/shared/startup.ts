@@ -88,3 +88,32 @@ export const availableSlots: { [key: number]: Slot } = {
         betAmounts: [50, 100, 150, 250, 500]
     }
 };
+
+export const winMultipliers: { [key: string]: number } = {
+    '1': 25,
+    '2': 50,
+    '3': 75,
+    '4': 100,
+    '5': 250,
+    '6': 500,
+    '7': 1000,
+};
+
+export const winNumbers: { [key: number]: string } = {
+    1: '2',
+    2: '3',
+    3: '6',
+    4: '2',
+    5: '4',
+    6: '1',
+    7: '6',
+    8: '5',
+    9: '2',
+    10: '1',
+    11: '3',
+    12: '6',
+    13: '7',
+    14: '1',
+    15: '4',
+    16: '5',
+};
