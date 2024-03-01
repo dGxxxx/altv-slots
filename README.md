@@ -1,6 +1,6 @@
 #  🎰 alt:V Slots
 
-Preview: [https://streamable.com/3jix8s](https://streamable.com/2o6sa6)
+Preview: https://streamable.com/2o6sa6
 
 ## Features:
 - Created using server-side objects.
