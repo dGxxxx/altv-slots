@@ -1,4 +1,4 @@
-#  🎰 alt:V Hunting
+#  🎰 alt:V Slots
 
 Preview: [https://streamable.com/3jix8s](https://streamable.com/2o6sa6)
 
