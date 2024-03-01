@@ -75,8 +75,6 @@ alt.on('keyup', async (key: alt.KeyCode) => {
         clientObject3.destroy();
 
         alt.emitServerRaw('serverSlots:enterSlot', slotHeading, localObjPos1, localObjPos2, localObjPos3);
-
-        isSeated = true;
     })
     .catch((e) => {
         alt.logError(e);
@@ -129,16 +127,23 @@ alt.onServer('clientSlot:clunkSound', () => {
     native.releaseSoundId(soundId);
 });
 
-alt.onServer('clientSlot:leaveSlot', async () => {
+alt.onServer('clientSlot:leaveSlot', async (slotPosition: alt.Vector3, slotModel: number) => {
+    closestSlot = null;
+    closestSlotCoord = null;
+    closestSlotRotation = null;
+    closestSlotModel = null;
+
+    const slotEntity = native.getClosestObjectOfType(slotPosition.x, slotPosition.y, slotPosition.z, 2, slotModel, false, false, false);
+    const slotRotation = native.getEntityRotation(slotEntity, 2);
     const randomAnim = randomLeave[Math.floor(Math.random() * randomLeave.length)];
     const animDuration = native.getAnimDuration(animDict, randomAnim);
     const leaveScene = native.networkCreateSynchronisedScene(
-        closestSlotCoord.x,
-        closestSlotCoord.y,
-        closestSlotCoord.z,
-        closestSlotRotation.x,
-        closestSlotRotation.y,
-        closestSlotRotation.z,
+        slotPosition.x,
+        slotPosition.y,
+        slotPosition.z,
+        slotRotation.x,
+        slotRotation.y,
+        slotRotation.z,
         2, 
         false, 
         false, 
@@ -161,20 +166,8 @@ alt.onServer('clientSlot:leaveSlot', async () => {
     );
 
     native.networkStartSynchronisedScene(leaveScene);
-
     await alt.Utils.wait(animDuration * 700);
-
     native.networkStopSynchronisedScene(leaveScene);
-
-    closestSlot = null;
-    closestSlotCoord = null;
-    closestSlotRotation = null;
-    closestSlotModel = null;
-
-    if (drawInterval != null) {
-        alt.clearInterval(drawInterval);
-        drawInterval = null;
-    };
 
     isSeated = false;
     isSpinning = false;
@@ -504,6 +497,8 @@ alt.onServer('clientSlots:enterSlot', async () => {
     );
 
     native.networkStartSynchronisedScene(idleScene);
+
+    isSeated = true;
 });
 
 function drawText(coords: alt.Vector3, text: string): void {

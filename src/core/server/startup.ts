@@ -539,6 +539,8 @@ alt.onClient('serverSlots:leaveSlot', (player: alt.Player) => {
     let playerSlot = serverSlots.find(serverSlot => serverSlot.occupiedBy == player);
     if (!playerSlot) return;
 
+    if (playerSlot.isSpinning) return;
+
     playerSlot.clearSlot();
 
     let currSlotPosition = playerSlot.slotPosition;
@@ -549,7 +551,7 @@ alt.onClient('serverSlots:leaveSlot', (player: alt.Player) => {
 
     serverSlots.splice(playerSlotIndex, 1);
 
-    player.emitRaw('clientSlot:leaveSlot');
+    player.emitRaw('clientSlot:leaveSlot', currSlotPosition, currSlotModel);
 
     let serverSlot = new Slot(currSlotPosition, currSlotModel);
     serverSlots.push(serverSlot);
