@@ -156,6 +156,8 @@ class Slot {
     }
 
     enterRange(slotPlayer: alt.Player) {
+        if (this.occupiedBy !== null) return;
+
         let isPlayingAlready = serverSlots.find(serverSlot => serverSlot.occupiedBy == slotPlayer);
         if (isPlayingAlready) return;
 
@@ -178,6 +180,7 @@ class Slot {
     };
 
     sitPlayer(slotPlayer: alt.Player, slotHeading: number, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3: alt.Vector3) {
+        if (slotPlayer.isDead) return;
         if (this.occupiedBy != null) return;
 
         let isPlayingAlready = serverSlots.find(serverSlot => serverSlot.occupiedBy == slotPlayer);
@@ -337,6 +340,8 @@ class Slot {
 
                 this.reelObject1.rot = new alt.Vector3(degreesToRadians(this.winNum.firstReel * 22.5 - 180), finalRot.y, finalRot.z);
                 this.reelObject1.visible = true;
+
+                this.occupiedBy.emitRaw('clientSlot:clunkSound');
             };
 
             if (i < 240) {
@@ -350,6 +355,8 @@ class Slot {
 
                 this.reelObject2.rot = new alt.Vector3(degreesToRadians(this.winNum.secondReel * 22.5 - 180), finalRot.y, finalRot.z);
                 this.reelObject2.visible = true;
+
+                this.occupiedBy.emitRaw('clientSlot:clunkSound');
             };
 
             if (i < 300) {
@@ -363,6 +370,8 @@ class Slot {
 
                 this.reelObject3.rot = new alt.Vector3(degreesToRadians(this.winNum.thirdReel * 22.5 - 180), finalRot.y, finalRot.z);
                 this.reelObject3.visible = true;
+
+                this.occupiedBy.emitRaw('clientSlot:clunkSound');
             };
     
             await alt.Utils.wait(15);
@@ -395,9 +404,68 @@ class Slot {
         };
 
         var isWin = totalWin > 0 ? true : false;
-        
+
+        if (isWin) {
+            // Here you can do more stuff urself after the player won.
+            alt.log('Player won!');
+        } else {
+            // Here you can do more stuff urself after the player lost.
+            alt.log('Player lost!');
+        };
+
         this.isSpinning = false;
         this.occupiedBy.emitRaw('clientSlot:spinFinished', isWin);
+    };
+
+    clearSlot() {
+        if (this.reelObject1 != null) {
+            if (this.reelObject1.valid) {
+                this.reelObject1.destroy();
+                this.reelObject1 = null;
+            };
+        };
+
+        if (this.reelObject2 != null) {
+            if (this.reelObject2.valid) {
+                this.reelObject2.destroy();
+                this.reelObject2 = null;
+            };
+        };
+
+        if (this.reelObject3 != null) {
+            if (this.reelObject3.valid) {
+                this.reelObject3.destroy();
+                this.reelObject3 = null;
+            };
+        };
+
+        if (this.reelBlurryObject1 != null) {
+            if (this.reelBlurryObject1.valid) {
+                this.reelBlurryObject1.destroy();
+                this.reelBlurryObject1 = null;
+            };
+        };
+
+        if (this.reelBlurryObject2 != null) {
+            if (this.reelBlurryObject2.valid) {
+                this.reelBlurryObject2.destroy();
+                this.reelBlurryObject2 = null;
+            };
+        };
+
+        if (this.reelBlurryObject3 != null) {
+            if (this.reelBlurryObject3.valid) {
+                this.reelBlurryObject3.destroy();
+                this.reelBlurryObject3 = null;
+            };
+        };
+        
+        if (this.slotColshape != null) {
+            if (this.slotColshape.valid) {
+                this.slotColshape.destroy();
+                this.slotColshape = null;
+            };
+        };
     };
 };
 
@@ -408,6 +476,44 @@ alt.on('resourceStart', (isErrored: boolean) => {
         let serverSlot = new Slot(availableSlot.slotPosition, availableSlot.slotModel);
         serverSlots.push(serverSlot);
     };
+});
+
+alt.on('playerDisconnect', (player: alt.Player, reason: string) => {
+    let playerSlot = serverSlots.find(serverSlot => serverSlot.occupiedBy == player);
+    if (!playerSlot) return;
+
+    playerSlot.clearSlot();
+
+    let currSlotPosition = playerSlot.slotPosition;
+    let currSlotModel = playerSlot.slotModel;
+
+    let playerSlotIndex = serverSlots.findIndex(serverSlot => serverSlot == playerSlot);
+    if (playerSlotIndex == -1) return;
+
+    serverSlots.splice(playerSlotIndex, 1);
+
+    let serverSlot = new Slot(currSlotPosition, currSlotModel);
+    serverSlots.push(serverSlot);
+});
+
+alt.on('playerDeath', (deadPlayer: alt.Player, killerPlayer: alt.Player) => {
+    let playerSlot = serverSlots.find(serverSlot => serverSlot.occupiedBy == deadPlayer);
+    if (!playerSlot) return;
+
+    playerSlot.clearSlot();
+
+    let currSlotPosition = playerSlot.slotPosition;
+    let currSlotModel = playerSlot.slotModel;
+
+    let playerSlotIndex = serverSlots.findIndex(serverSlot => serverSlot == playerSlot);
+    if (playerSlotIndex == -1) return;
+
+    serverSlots.splice(playerSlotIndex, 1);
+
+    let serverSlot = new Slot(currSlotPosition, currSlotModel);
+    serverSlots.push(serverSlot);
+
+    deadPlayer.emitRaw('clientSlots:resetClosestSlot');
 });
 
 alt.on('playerConnect', (player: alt.Player) => {
@@ -427,6 +533,26 @@ alt.onClient('serverSlots:spinSlot', (player: alt.Player) => {
     if (!playerSlot) return;
 
     playerSlot.spinSlot(player);
+});
+
+alt.onClient('serverSlots:leaveSlot', (player: alt.Player) => {
+    let playerSlot = serverSlots.find(serverSlot => serverSlot.occupiedBy == player);
+    if (!playerSlot) return;
+
+    playerSlot.clearSlot();
+
+    let currSlotPosition = playerSlot.slotPosition;
+    let currSlotModel = playerSlot.slotModel;
+
+    let playerSlotIndex = serverSlots.findIndex(serverSlot => serverSlot == playerSlot);
+    if (playerSlotIndex == -1) return;
+
+    serverSlots.splice(playerSlotIndex, 1);
+
+    player.emitRaw('clientSlot:leaveSlot');
+
+    let serverSlot = new Slot(currSlotPosition, currSlotModel);
+    serverSlots.push(serverSlot);
 });
 
 alt.on('entityEnterColshape', (colshape: alt.Colshape, entity: alt.Entity) => {

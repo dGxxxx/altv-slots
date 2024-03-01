@@ -9,6 +9,7 @@ const randomSpin: string[] = ['press_spin_a', 'press_spin_b', 'pull_spin_a', 'pu
 const randomSpinningIdle: string[] = ['spinning_a', 'spinning_b', 'spinning_c'];
 const randomWin: string[] = [ 'win_a', 'win_b', 'win_c', 'win_d', 'win_e', 'win_f', 'win_g', 'win_spinning_wheel' ];
 const randomLose: string[] = [ 'lose_a', 'lose_b', 'lose_c', 'lose_d', 'lose_e', 'lose_f', 'lose_cruel_a', 'lose_cruel_b' ];
+const randomLeave: string[] = [ 'exit_left', 'exit_right' ];
 
 let closestSlot: number | null = null;
 let closestSlotModel: number | null = null;
@@ -95,6 +96,20 @@ alt.on('keyup', (key: alt.KeyCode) => {
     alt.emitServerRaw('serverSlots:spinSlot');
 });
 
+alt.on('keyup', (key: alt.KeyCode) => {
+    if (key != 8) return;
+
+    if (closestSlot == null ||
+        closestSlotModel == null || 
+        closestSlotCoord == null ||
+        closestSlotRotation == null) return; 
+
+    if (!isSeated) return;
+    if (isSpinning) return;
+
+    alt.emitServerRaw('serverSlots:leaveSlot');
+});
+
 alt.onServer('clientSlot:positionReels', async (reelObject1: alt.Object, reelObject2: alt.Object, reelObject3: alt.Object, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3:alt.Vector3) => {
     await alt.Utils.waitFor(() => reelObject1.isSpawned && reelObject2.isSpawned && reelObject3.isSpawned)
     .then(() => {
@@ -105,6 +120,64 @@ alt.onServer('clientSlot:positionReels', async (reelObject1: alt.Object, reelObj
     .catch((e) => {
         alt.logError(e);
     });
+});
+
+alt.onServer('clientSlot:clunkSound', () => {
+    const soundId = native.getSoundId();
+
+    native.playSoundFromCoord(soundId, 'wheel_stop_clunk', closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, availableSlots[closestSlotModel].slotSound, false, 20, false);
+    native.releaseSoundId(soundId);
+});
+
+alt.onServer('clientSlot:leaveSlot', async () => {
+    const randomAnim = randomLeave[Math.floor(Math.random() * randomLeave.length)];
+    const animDuration = native.getAnimDuration(animDict, randomAnim);
+    const leaveScene = native.networkCreateSynchronisedScene(
+        closestSlotCoord.x,
+        closestSlotCoord.y,
+        closestSlotCoord.z,
+        closestSlotRotation.x,
+        closestSlotRotation.y,
+        closestSlotRotation.z,
+        2, 
+        false, 
+        false, 
+        1.0, 
+        0, 
+        1.0
+    );
+
+    native.networkAddPedToSynchronisedScene(
+        alt.Player.local.scriptID,
+        leaveScene,
+        animDict,
+        randomAnim,
+        2.0, 
+        -1.5, 
+        13, 
+        16, 
+        2.0, 
+        0
+    );
+
+    native.networkStartSynchronisedScene(leaveScene);
+
+    await alt.Utils.wait(animDuration * 700);
+
+    native.networkStopSynchronisedScene(leaveScene);
+
+    closestSlot = null;
+    closestSlotCoord = null;
+    closestSlotRotation = null;
+    closestSlotModel = null;
+
+    if (drawInterval != null) {
+        alt.clearInterval(drawInterval);
+        drawInterval = null;
+    };
+
+    isSeated = false;
+    isSpinning = false;
 });
 
 alt.onServer('clientSlot:spinFinished', async (isWin: boolean) => {
@@ -360,6 +433,7 @@ alt.onServer('clientSlots:enterSlot', async () => {
 
     if (drawInterval != null) {
         alt.clearInterval(drawInterval);
+        drawInterval = null;
     };
 
     const soundId = native.getSoundId();
