@@ -89,6 +89,7 @@ alt.on('keyup', (key: alt.KeyCode) => {
         closestSlotCoord == null ||
         closestSlotRotation == null) return; 
 
+    if (!isSeated) return;
     if (isSpinning) return;
 
     alt.emitServerRaw('serverSlots:spinSlot');
