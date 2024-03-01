@@ -126,6 +126,7 @@ class Slot {
     reelBlurryObject3: alt.Object | null;
 
     winNum: Win | null;
+    isSpinning: boolean;
 
     constructor(slotPosition, slotModel) {
         this.slotPosition = slotPosition;
@@ -151,6 +152,7 @@ class Slot {
         this.reelBlurryObject3 = null;
 
         this.firstSpin = true;
+        this.isSpinning = false;
     }
 
     enterRange(slotPlayer: alt.Player) {
@@ -249,6 +251,9 @@ class Slot {
 
     async spinSlot(slotPlayer: alt.Player) {
         if (this.occupiedBy != slotPlayer) return;
+        if (this.isSpinning) return;
+
+        this.isSpinning = true;
 
         if (this.firstSpin) {
             if (this.reelBlurryObject1 != null) {
@@ -370,6 +375,7 @@ class Slot {
         let cWin = winNumbers[this.winNum.thirdReel];
 
         // 100 is a placeholder for the player's money. You will need to adjust this with your own script / gamemode.
+
         if (aWin === bWin && bWin === cWin && aWin === cWin) {
             if (winMultipliers[aWin]) {
                 totalWin = 100 * winMultipliers[aWin];
@@ -390,6 +396,7 @@ class Slot {
 
         var isWin = totalWin > 0 ? true : false;
         
+        this.isSpinning = false;
         this.occupiedBy.emitRaw('clientSlot:spinFinished', isWin);
     };
 };

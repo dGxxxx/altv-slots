@@ -10,7 +10,6 @@ const randomSpinningIdle: string[] = ['spinning_a', 'spinning_b', 'spinning_c'];
 const randomWin: string[] = [ 'win_a', 'win_b', 'win_c', 'win_d', 'win_e', 'win_f', 'win_g', 'win_spinning_wheel' ];
 const randomLose: string[] = [ 'lose_a', 'lose_b', 'lose_c', 'lose_d', 'lose_e', 'lose_f', 'lose_cruel_a', 'lose_cruel_b' ];
 
-
 let closestSlot: number | null = null;
 let closestSlotModel: number | null = null;
 let closestSlotCoord: alt.Vector3 | null = null;
@@ -18,6 +17,9 @@ let closestSlotRotation: alt.Vector3 | null = null;
 
 let drawInterval: number | null = null;
 let animDict: string = 'anim_casino_a@amb@casino@games@slots@male';
+
+let isSpinning: boolean = false;
+let isSeated: boolean = false;
 
 function degreesToRadians(degrees: number) {
     return degrees * (Math.PI / 180);
@@ -50,6 +52,8 @@ alt.on('keyup', async (key: alt.KeyCode) => {
         closestSlotRotation == null
         ) return; 
 
+    if (isSeated) return;
+
     let slotHeading = native.getEntityHeading(closestSlot);
 
     let reelLocation1 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), -0.115, 0.047, 0.906)
@@ -70,6 +74,8 @@ alt.on('keyup', async (key: alt.KeyCode) => {
         clientObject3.destroy();
 
         alt.emitServerRaw('serverSlots:enterSlot', slotHeading, localObjPos1, localObjPos2, localObjPos3);
+
+        isSeated = true;
     })
     .catch((e) => {
         alt.logError(e);
@@ -82,8 +88,9 @@ alt.on('keyup', (key: alt.KeyCode) => {
     if (closestSlot == null ||
         closestSlotModel == null || 
         closestSlotCoord == null ||
-        closestSlotRotation == null
-        ) return; 
+        closestSlotRotation == null) return; 
+
+    if (isSpinning) return;
 
     alt.emitServerRaw('serverSlots:spinSlot');
 });
@@ -102,7 +109,6 @@ alt.onServer('clientSlot:positionReels', async (reelObject1: alt.Object, reelObj
 
 alt.onServer('clientSlot:spinFinished', async (isWin: boolean) => {
     const soundId = native.getSoundId();
-
     let randomAnim;
 
     if (isWin) {
@@ -177,6 +183,8 @@ alt.onServer('clientSlot:spinFinished', async (isWin: boolean) => {
 
     let animDuration = native.getAnimDuration(animDict, randomAnim);
     await alt.Utils.wait(animDuration * 800);
+
+    isSpinning = false;
 
     const randomIdleAnim = randomIdle[Math.floor(Math.random() * randomIdle.length)];
     const idleScene = native.networkCreateSynchronisedScene(
@@ -285,9 +293,12 @@ alt.onServer('clientSlot:spinSlot', async () => {
     native.playSoundFromCoord(soundId, 'start_spin', closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, availableSlots[closestSlotModel].slotSound, false, 20, false);
     native.releaseSoundId(soundId);
 
+    isSpinning = true;
+
+    const delayMultiplier = (randomAnimName === 'pull_spin_a' || randomAnimName === 'pull_spin_b') ? 320 : 180;
     const animationDuration = native.getAnimDuration(animDict, randomAnimName);
 
-    await alt.Utils.wait(animationDuration * 180);
+    await alt.Utils.wait(animationDuration * delayMultiplier);
 
     const rIdle = randomSpinningIdle[Math.floor(Math.random() * randomSpinningIdle.length)];
     const spinningScene = native.networkCreateSynchronisedScene(
