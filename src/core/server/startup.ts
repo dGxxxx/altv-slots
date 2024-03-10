@@ -69,6 +69,11 @@ const availableSlotPosition: SlotInformation[]= [
     { slotPosition: new alt.Vector3(1129.6400146484375, 250.45098876953125, -52.04094314575195), slotModel: 3807744938 },
 ];
 
+const maxEntitiesInStream = availableSlotPosition.length;
+const slotGroup = new alt.VirtualEntityGroup(maxEntitiesInStream);
+const slotType = 'casinoSlot';
+
+
 function degreesToRadians(degrees: number): number {
     degrees = (degrees % 360 + 360) % 360;
 
@@ -107,26 +112,14 @@ class Slot {
     slotModel: number | null;
     slotPosition: alt.Vector3 | null;
     slotColshape: alt.ColshapeCircle | null;
-    slotHeading: number | null;
-    slotReelLocation1: alt.Vector3 | null;
-    slotReelLocation2: alt.Vector3 | null;
-    slotReelLocation3: alt.Vector3 | null;
 
     occupiedBy: alt.Player | null;
     playersInRange: alt.Player[];
 
-    firstSpin: boolean;
-
-    reelObject1: alt.Object | null;
-    reelObject2: alt.Object | null;
-    reelObject3: alt.Object | null;
-
-    reelBlurryObject1: alt.Object | null;
-    reelBlurryObject2: alt.Object | null;
-    reelBlurryObject3: alt.Object | null;
-
     winNum: Win | null;
     isSpinning: boolean;
+
+    slotEntity: alt.VirtualEntity | null;
 
     constructor(slotPosition, slotModel) {
         this.slotPosition = slotPosition;
@@ -135,23 +128,9 @@ class Slot {
         this.slotColshape = new alt.ColshapeCircle(this.slotPosition.x, this.slotPosition.y, 1.5);
         this.slotColshape.playersOnly = true;
 
-        this.slotHeading = null;
-        this.slotReelLocation1 = null;
-        this.slotReelLocation2 = null;
-        this.slotReelLocation3 = null;
-
         this.occupiedBy = null;
         this.playersInRange = [];
 
-        this.reelObject1 = null;
-        this.reelObject2 = null;
-        this.reelObject3 = null;
-
-        this.reelBlurryObject1 = null;
-        this.reelBlurryObject2 = null;
-        this.reelBlurryObject3 = null;
-
-        this.firstSpin = true;
         this.isSpinning = false;
     }
 
@@ -179,67 +158,23 @@ class Slot {
         slotPlayer.emitRaw('clientSlots:resetClosestSlot', this.slotPosition, this.slotModel);
     };
 
-    sitPlayer(slotPlayer: alt.Player, slotHeading: number, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3: alt.Vector3) {
+    sitPlayer(slotPlayer: alt.Player) {
         if (slotPlayer.isDead) return;
         if (this.occupiedBy != null) return;
 
         let isPlayingAlready = serverSlots.find(serverSlot => serverSlot.occupiedBy == slotPlayer);
         if (isPlayingAlready) return;
 
-        let playerDistance = slotPlayer.pos.distanceTo(this.slotPosition);
-        if (playerDistance > 2) return;
-
-        let reelDistance1 = slotReelLocation1.distanceTo(this.slotPosition);
-        if (reelDistance1 > 2) return;
-
-        let reelDistance2 = slotReelLocation2.distanceTo(this.slotPosition);
-        if (reelDistance2 > 2) return;
-
-        let reelDistance3 = slotReelLocation3.distanceTo(this.slotPosition);
-        if (reelDistance3 > 2) return;
-
-        this.slotHeading = degreesToRadians(slotHeading);
-
-        if (this.reelObject1 != null) {
-            if (this.reelObject1.valid) {
-                this.reelObject1.destroy();
-                this.reelObject1 = null;
-            };
-        };
-
-        if (this.reelObject2 != null) {
-            if (this.reelObject2.valid) {
-                this.reelObject2.destroy();
-                this.reelObject2 = null;
-            };
-        };
-
-        if (this.reelObject3 != null) {
-            if (this.reelObject3.valid) {
-                this.reelObject3.destroy();
-                this.reelObject3 = null;
-            };
-        };
-
         this.occupiedBy = slotPlayer;
+        this.slotEntity = new alt.VirtualEntity(slotGroup, this.slotPosition, 50, { 
+            entityType: slotType, 
+            entityModel: this.slotModel, 
+            entityPosition: this.slotPosition,
+            firstX: 0,
+            secondX: 0,
+            thirdX: 0
+        });
 
-        this.slotReelLocation1 = slotReelLocation1;
-        this.slotReelLocation2 = slotReelLocation2;
-        this.slotReelLocation3 = slotReelLocation3;
-
-        this.reelObject1 = new alt.Object(availableSlots[this.slotModel].reelA, this.slotReelLocation1, new alt.Vector3(0, 0, this.slotHeading));
-        this.reelObject2 = new alt.Object(availableSlots[this.slotModel].reelA, this.slotReelLocation2, new alt.Vector3(0, 0, this.slotHeading));
-        this.reelObject3 = new alt.Object(availableSlots[this.slotModel].reelA, this.slotReelLocation3, new alt.Vector3(0, 0, this.slotHeading));
-
-        this.reelObject1.setNetOwner(this.occupiedBy, true);
-        this.reelObject2.setNetOwner(this.occupiedBy, true);
-        this.reelObject3.setNetOwner(this.occupiedBy, true);
-
-        this.reelObject1.frozen = true;
-        this.reelObject2.frozen = true;
-        this.reelObject3.frozen = true;
-
-        this.occupiedBy.emitRaw('clientSlot:positionReels', this.reelObject1, this.reelObject2, this.reelObject3, this.slotReelLocation1, this.slotReelLocation2, this.slotReelLocation3);
         this.occupiedBy.emitRaw('clientSlots:enterSlot');
 
         this.playersInRange.forEach(rangePlayer => {
@@ -257,53 +192,6 @@ class Slot {
         if (this.isSpinning) return;
 
         this.isSpinning = true;
-
-        if (this.firstSpin) {
-            if (this.reelBlurryObject1 != null) {
-                if (this.reelBlurryObject1.valid) {
-                    this.reelBlurryObject1.destroy();
-                    this.reelBlurryObject1 = null;
-                };
-            };
-    
-            if (this.reelBlurryObject2 != null) {
-                if (this.reelBlurryObject2.valid) {
-                    this.reelBlurryObject2.destroy();
-                    this.reelBlurryObject2 = null;
-                };
-            };
-    
-            if (this.reelBlurryObject3 != null) {
-                if (this.reelBlurryObject3.valid) {
-                    this.reelBlurryObject3.destroy();
-                    this.reelBlurryObject3 = null;
-                };
-            };
-    
-            this.reelObject1.visible = false;
-            this.reelObject2.visible = false;
-            this.reelObject3.visible = false;
-    
-            this.reelBlurryObject1 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation1, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
-            this.reelBlurryObject2 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation2, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
-            this.reelBlurryObject3 = new alt.Object(availableSlots[this.slotModel].reelB, this.slotReelLocation3, new alt.Vector3(0 + degreesToRadians(getRandomInt(0, 360) - 180), 0, this.slotHeading));
-    
-            this.reelBlurryObject1.setNetOwner(this.occupiedBy, true);
-            this.reelBlurryObject2.setNetOwner(this.occupiedBy, true);
-            this.reelBlurryObject3.setNetOwner(this.occupiedBy, true);
-    
-            this.reelBlurryObject1.frozen = true;
-            this.reelBlurryObject2.frozen = true;
-            this.reelBlurryObject3.frozen = true;
-    
-            await alt.Utils.waitFor(() => this.reelBlurryObject1.netOwner == slotPlayer);
-            await alt.Utils.waitFor(() => this.reelBlurryObject2.netOwner == slotPlayer);
-            await alt.Utils.waitFor(() => this.reelBlurryObject3.netOwner == slotPlayer);
-
-            this.occupiedBy.emitRaw('clientSlot:positionReels', this.reelBlurryObject1, this.reelBlurryObject2, this.reelBlurryObject3, this.slotReelLocation1, this.slotReelLocation2, this.slotReelLocation3);
-            this.firstSpin = false;
-        };
-
         this.winNum = {
             firstReel: getRandomInt(1, 16),
             secondReel: getRandomInt(1, 16),
@@ -314,156 +202,72 @@ class Slot {
         let secondRnd = getRandomInt(1, 100);
         let thirdRnd = getRandomInt(1, 100);
 
-        if (firstRnd > 70) this.winNum.firstReel += 0.5;
-        if (secondRnd > 70) this.winNum.secondReel += 0.5;
-        if (thirdRnd > 70) this.winNum.thirdReel += 0.5;
+        if (firstRnd > 70 && this.winNum.firstReel != 16) this.winNum.firstReel += 0.5;
+        if (secondRnd > 70 && this.winNum.secondReel != 16) this.winNum.secondReel += 0.5;
+        if (thirdRnd > 70 && this.winNum.thirdReel != 16) this.winNum.thirdReel += 0.5;
 
-        let tempRot1 = this.reelBlurryObject1.rot;
-        let tempRot2 = this.reelBlurryObject2.rot;
-        let tempRot3 = this.reelBlurryObject3.rot;
+        this.slotEntity.setStreamSyncedMeta("firstX", this.winNum.firstReel);
+        this.slotEntity.setStreamSyncedMeta("secondX", this.winNum.secondReel);
+        this.slotEntity.setStreamSyncedMeta("thirdX", this.winNum.thirdReel);
 
-        this.reelBlurryObject1.visible = true;
-        this.reelBlurryObject2.visible = true;
-        this.reelBlurryObject3.visible = true;
-
+        this.slotEntity.setStreamSyncedMeta("spinningInfo", { isSpinning: true, spinningStart: alt.getNetTime() });
         this.occupiedBy.emitRaw('clientSlot:spinSlot');
 
-        for (let i = 1; i <= 300; i++) {
-            if (i < 180) {
-                this.reelBlurryObject1.rot = new alt.Vector3(tempRot1.x + degreesToRadians(getRandomInt(0, 360)), tempRot1.y, tempRot1.z);
-            } else if (i == 180) {
-                let finalRot = this.reelBlurryObject1.rot;
-        
-                if (this.reelBlurryObject1.valid) {
-                    this.reelBlurryObject1.visible = false;
+        await alt.Utils.wait(6000);
+
+        if (this.slotEntity !== null && this.slotEntity.valid) {
+            let totalWin: number = 0;
+
+            let aWin = winNumbers[this.winNum.firstReel];
+            let bWin = winNumbers[this.winNum.secondReel];
+            let cWin = winNumbers[this.winNum.thirdReel];
+    
+            if (aWin === bWin && bWin === cWin && aWin === cWin) {
+                if (winMultipliers[aWin]) {
+                    totalWin = 100 * winMultipliers[aWin];
                 };
-
-                this.reelObject1.rot = new alt.Vector3(degreesToRadians(this.winNum.firstReel * 22.5 - 180), finalRot.y, finalRot.z);
-                this.reelObject1.visible = true;
-
-                this.occupiedBy.emitRaw('clientSlot:clunkSound');
-            };
-
-            if (i < 240) {
-                this.reelBlurryObject2.rot = new alt.Vector3(tempRot2.x + degreesToRadians(getRandomInt(0, 360)), tempRot2.y, tempRot2.z);
-            } else if (i == 240) {
-                let finalRot = this.reelBlurryObject2.rot;
-        
-                if (this.reelBlurryObject2.valid) {
-                    this.reelBlurryObject2.visible = false;
-                };
-
-                this.reelObject2.rot = new alt.Vector3(degreesToRadians(this.winNum.secondReel * 22.5 - 180), finalRot.y, finalRot.z);
-                this.reelObject2.visible = true;
-
-                this.occupiedBy.emitRaw('clientSlot:clunkSound');
-            };
-
-            if (i < 300) {
-                this.reelBlurryObject3.rot = new alt.Vector3(tempRot3.x + degreesToRadians(getRandomInt(0, 360)), tempRot3.y, tempRot3.z);
-            } else if (i == 300) {
-                let finalRot = this.reelBlurryObject3.rot;
-        
-                if (this.reelBlurryObject3.valid) {
-                    this.reelBlurryObject3.visible = false;
-                };
-
-                this.reelObject3.rot = new alt.Vector3(degreesToRadians(this.winNum.thirdReel * 22.5 - 180), finalRot.y, finalRot.z);
-                this.reelObject3.visible = true;
-
-                this.occupiedBy.emitRaw('clientSlot:clunkSound');
+            } else if (aWin === '6' && bWin === '6') {
+                totalWin = 100 * 5;
+            } else if (aWin === '6' && cWin === '6') {
+                totalWin = 100 * 5;
+            } else if (bWin === '6' && cWin === '6') {
+                totalWin = 100 * 5;
+            } else if (aWin === '6') {
+                totalWin = 100 * 2;
+            } else if (bWin === '6') {
+                totalWin = 100 * 2;
+            } else if (cWin === '6') {
+                totalWin = 100 * 2;
             };
     
-            await alt.Utils.wait(15);
-        };
-
-        let totalWin: number = 0;
-
-        let aWin = winNumbers[this.winNum.firstReel];
-        let bWin = winNumbers[this.winNum.secondReel];
-        let cWin = winNumbers[this.winNum.thirdReel];
-
-        // 100 is a placeholder for the player's money. You will need to adjust this with your own script / gamemode.
-
-        if (aWin === bWin && bWin === cWin && aWin === cWin) {
-            if (winMultipliers[aWin]) {
-                totalWin = 100 * winMultipliers[aWin];
+            var isWin = totalWin > 0 ? true : false;
+    
+            if (isWin) {
+                // Here you can do more stuff urself after the player won.
+                alt.log('Player won!');
+            } else {
+                // Here you can do more stuff urself after the player lost.
+                alt.log('Player lost!');
             };
-        } else if (aWin === '6' && bWin === '6') {
-            totalWin = 100 * 5;
-        } else if (aWin === '6' && cWin === '6') {
-            totalWin = 100 * 5;
-        } else if (bWin === '6' && cWin === '6') {
-            totalWin = 100 * 5;
-        } else if (aWin === '6') {
-            totalWin = 100 * 2;
-        } else if (bWin === '6') {
-            totalWin = 100 * 2;
-        } else if (cWin === '6') {
-            totalWin = 100 * 2;
-        };
-
-        var isWin = totalWin > 0 ? true : false;
-
-        if (isWin) {
-            // Here you can do more stuff urself after the player won.
-            alt.log('Player won!');
-        } else {
-            // Here you can do more stuff urself after the player lost.
-            alt.log('Player lost!');
-        };
-
-        this.isSpinning = false;
-        this.occupiedBy.emitRaw('clientSlot:spinFinished', isWin);
+    
+            this.isSpinning = false;
+            this.slotEntity.setStreamSyncedMeta("spinningInfo", { isSpinning: false, spinningStart: alt.getNetTime() });
+            this.occupiedBy.emitRaw('clientSlot:spinFinished', isWin);
+        }
     };
 
     clearSlot() {
-        if (this.reelObject1 != null) {
-            if (this.reelObject1.valid) {
-                this.reelObject1.destroy();
-                this.reelObject1 = null;
-            };
-        };
-
-        if (this.reelObject2 != null) {
-            if (this.reelObject2.valid) {
-                this.reelObject2.destroy();
-                this.reelObject2 = null;
-            };
-        };
-
-        if (this.reelObject3 != null) {
-            if (this.reelObject3.valid) {
-                this.reelObject3.destroy();
-                this.reelObject3 = null;
-            };
-        };
-
-        if (this.reelBlurryObject1 != null) {
-            if (this.reelBlurryObject1.valid) {
-                this.reelBlurryObject1.destroy();
-                this.reelBlurryObject1 = null;
-            };
-        };
-
-        if (this.reelBlurryObject2 != null) {
-            if (this.reelBlurryObject2.valid) {
-                this.reelBlurryObject2.destroy();
-                this.reelBlurryObject2 = null;
-            };
-        };
-
-        if (this.reelBlurryObject3 != null) {
-            if (this.reelBlurryObject3.valid) {
-                this.reelBlurryObject3.destroy();
-                this.reelBlurryObject3 = null;
-            };
-        };
-        
         if (this.slotColshape != null) {
             if (this.slotColshape.valid) {
                 this.slotColshape.destroy();
                 this.slotColshape = null;
+            };
+        };
+
+        if (this.slotEntity != null) {
+            if (this.slotEntity.valid) {
+                this.slotEntity.destroy();
+                this.slotEntity = null;
             };
         };
     };
@@ -518,14 +322,14 @@ alt.on('playerDeath', (deadPlayer: alt.Player, killerPlayer: alt.Player) => {
 
 alt.on('playerConnect', (player: alt.Player) => {
     player.model = 'mp_m_freemode_01';
-    player.spawn(1100.93896484375, 231.0016632080078, -50.840919494628906);
+    player.spawn(1102.3984375, 229.2767181396484, -49.84078979492187);
 });
 
-alt.onClient('serverSlots:enterSlot', (player: alt.Player, slotHeading: number, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3: alt.Vector3) => {
+alt.onClient('serverSlots:enterSlot', (player: alt.Player) => {
     let closestPlayerSlot = serverSlots.find(serverSlot => serverSlot.playersInRange.includes(player));
     if (!closestPlayerSlot) return;
 
-    closestPlayerSlot.sitPlayer(player, slotHeading, slotReelLocation1, slotReelLocation2, slotReelLocation3);
+    closestPlayerSlot.sitPlayer(player);
 });
 
 alt.onClient('serverSlots:spinSlot', (player: alt.Player) => {

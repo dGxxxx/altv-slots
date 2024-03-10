@@ -22,13 +22,258 @@ let animDict: string = 'anim_casino_a@amb@casino@games@slots@male';
 let isSpinning: boolean = false;
 let isSeated: boolean = false;
 
-function degreesToRadians(degrees: number) {
-    return degrees * (Math.PI / 180);
+let streamedSlots: Map<number, { 
+    streamedReel1: alt.LocalObject, 
+    streamedReel2: alt.LocalObject, 
+    streamedReel3: alt.LocalObject, 
+    streamedBlurryReel1: alt.LocalObject,
+    streamedBlurryReel2: alt.LocalObject,
+    streamedBlurryReel3: alt.LocalObject
+    }>  = new Map();
+
+function isObjectSlot(object: alt.BaseObject) {
+    if (!(object instanceof alt.VirtualEntity)) return false;
+    if (object.getStreamSyncedMeta('entityType') !== 'casinoSlot') return false;
+
+    return true;
+};
+
+function degreesToRadians(degrees: number): number {
+    degrees = (degrees % 360 + 360) % 360;
+
+    let radians = degrees * (Math.PI / 180);
+
+    if (radians > Math.PI) {
+        radians -= 2 * Math.PI;
+    }
+
+    return radians;
 };
 
 function getRandomInt(min: number, max: number) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 };
+
+function spinReels(object: alt.BaseObject, spinningStart: number) {
+    let streamedSlot = streamedSlots.get(object.remoteID);  
+    if (streamedSlot == null || streamedSlot == undefined) return;
+    if (!(object instanceof alt.VirtualEntity)) return;
+
+    let veObject = object as alt.VirtualEntity;
+    let entityModel = veObject.getStreamSyncedMeta('entityModel') as number;
+    let entityPosition = veObject.getStreamSyncedMeta('entityPosition') as alt.Vector3;
+    let firstX = veObject.getStreamSyncedMeta('firstX') as number;
+    let secondX = veObject.getStreamSyncedMeta('secondX') as number;
+    let thirdX = veObject.getStreamSyncedMeta('thirdX') as number;
+
+    streamedSlot.streamedReel1.alpha = 0;
+    streamedSlot.streamedReel2.alpha = 0;
+    streamedSlot.streamedReel3.alpha = 0;
+
+    streamedSlot.streamedBlurryReel1.alpha = 1000;
+    streamedSlot.streamedBlurryReel2.alpha = 1000;
+    streamedSlot.streamedBlurryReel3.alpha = 1000;
+
+    let spinInterval = alt.setInterval(() => {
+        let currentTime = alt.getNetTime();
+        let startTime = spinningStart;
+        let timeDiff = currentTime - startTime;
+
+        if (streamedSlot.streamedBlurryReel1.valid == false ||
+            streamedSlot.streamedBlurryReel2.valid == false ||
+            streamedSlot.streamedBlurryReel3.valid == false ||
+            streamedSlot.streamedReel1.valid == false ||
+            streamedSlot.streamedReel2.valid == false ||
+            streamedSlot.streamedReel3.valid == false
+            ) {
+                if (spinInterval != null) {
+                    alt.clearInterval(spinInterval);
+                    spinInterval = null;
+                }
+
+                return;
+            };
+
+        let currentRot1 = native.getEntityRotation(streamedSlot.streamedBlurryReel1, 0);
+        let currentRot2 = native.getEntityRotation(streamedSlot.streamedBlurryReel2, 0);
+        let currentRot3 = native.getEntityRotation(streamedSlot.streamedBlurryReel3, 0);
+
+        let firstRandom = currentRot1.x + getRandomInt(40, 100) / 10;
+        let secondRandom = currentRot2.x + getRandomInt(40, 100) / 10;
+        let thirdRandom = currentRot3.x + getRandomInt(40, 100) / 10;
+
+        native.setEntityRotation(streamedSlot.streamedBlurryReel1, firstRandom, currentRot1.y, currentRot1.z, 0, true);
+        native.setEntityRotation(streamedSlot.streamedBlurryReel2, secondRandom, currentRot2.y, currentRot2.z, 0, true);
+        native.setEntityRotation(streamedSlot.streamedBlurryReel3, thirdRandom, currentRot3.y, currentRot3.z, 0, true); 
+
+        if (timeDiff >= 2000) {
+            if (streamedSlot.streamedBlurryReel1.alpha > 0) {
+                streamedSlot.streamedBlurryReel1.alpha = 0;
+
+                if (streamedSlot.streamedReel1.alpha == 0) {
+                    let finalRot = native.getEntityRotation(streamedSlot.streamedBlurryReel1, 0);
+                    
+                    native.setEntityRotation(streamedSlot.streamedReel1, firstX * 22.5 - 180 + 0.0, finalRot.y, finalRot.z, 0, true);
+                    streamedSlot.streamedReel1.alpha = 1000;
+
+                    const soundId = native.getSoundId();
+                    native.playSoundFromCoord(soundId, 'wheel_stop_clunk', entityPosition.x, entityPosition.y, entityPosition.z, availableSlots[entityModel].slotSound, false, 20, false);
+                    native.releaseSoundId(soundId);
+                }
+            }
+        };
+
+        if (timeDiff >= 4000) {
+            if (streamedSlot.streamedBlurryReel2.alpha > 0) {
+                streamedSlot.streamedBlurryReel2.alpha = 0;
+
+                if (streamedSlot.streamedReel2.alpha == 0) {
+                    let finalRot = native.getEntityRotation(streamedSlot.streamedBlurryReel2, 0);
+                    
+                    native.setEntityRotation(streamedSlot.streamedReel2, secondX * 22.5 - 180 + 0.0, finalRot.y, finalRot.z, 0, true);
+                    streamedSlot.streamedReel2.alpha = 1000;
+
+                    const soundId = native.getSoundId();
+
+                    native.playSoundFromCoord(soundId, 'wheel_stop_clunk', entityPosition.x, entityPosition.y, entityPosition.z, availableSlots[entityModel].slotSound, false, 20, false);
+                    native.releaseSoundId(soundId);
+                }
+            }
+        };
+
+        if (timeDiff >= 6000) {
+            if (streamedSlot.streamedBlurryReel3.alpha > 0) {
+                streamedSlot.streamedBlurryReel3.alpha = 0;
+
+                if (streamedSlot.streamedReel3.alpha == 0) {
+                    let finalRot = native.getEntityRotation(streamedSlot.streamedBlurryReel3, 0);
+                    
+                    native.setEntityRotation(streamedSlot.streamedReel3, thirdX * 22.5 - 180 + 0.0, finalRot.y, finalRot.z, 0, true);
+                    streamedSlot.streamedReel3.alpha = 1000;
+
+                    const soundId = native.getSoundId();
+
+                    native.playSoundFromCoord(soundId, 'wheel_stop_clunk', entityPosition.x, entityPosition.y, entityPosition.z, availableSlots[entityModel].slotSound, false, 20, false);
+                    native.releaseSoundId(soundId);
+
+                    if (spinInterval != null) {
+                        alt.clearInterval(spinInterval);
+                        spinInterval = null;
+                    };
+                }
+            }
+        };
+    }, 10)
+}
+
+alt.on('streamSyncedMetaChange', (object, changedKey, newValue) => {
+    if (!isObjectSlot(object)) return;
+
+    switch (changedKey) {
+        case 'spinningInfo':
+            let streamedSlot = streamedSlots.get(object.remoteID);    
+            if (streamedSlot == null || streamedSlot == undefined) return;
+
+            let veObject = object as alt.VirtualEntity;
+            let firstX = veObject.getStreamSyncedMeta('firstX') as number;
+            let secondX = veObject.getStreamSyncedMeta('secondX') as number;
+            let thirdX = veObject.getStreamSyncedMeta('thirdX') as number;
+
+            if (newValue.isSpinning) { 
+                spinReels(object, newValue.spinningStart);
+            } else {
+                let currentRot1 = native.getEntityRotation(streamedSlot.streamedBlurryReel1, 0);
+                let currentRot2 = native.getEntityRotation(streamedSlot.streamedBlurryReel2, 0);
+                let currentRot3 = native.getEntityRotation(streamedSlot.streamedBlurryReel3, 0);
+
+                native.setEntityRotation(streamedSlot.streamedBlurryReel1, firstX * 22.5 - 180 + 0.0, currentRot1.y, currentRot1.z, 0, true);
+                native.setEntityRotation(streamedSlot.streamedBlurryReel2, secondX * 22.5 - 180 + 0.0, currentRot2.y, currentRot2.z, 0, true);
+                native.setEntityRotation(streamedSlot.streamedBlurryReel3, thirdX * 22.5 - 180 + 0.0, currentRot3.y, currentRot3.z, 0, true); 
+
+            break;
+        }
+    }
+})
+
+alt.on('worldObjectStreamIn', async (object: alt.WorldObject) => {
+    if (!isObjectSlot(object)) return;
+
+    let veObject = object as alt.VirtualEntity;
+    let entityModel = veObject.getStreamSyncedMeta('entityModel') as number;
+    let entityPosition = veObject.getStreamSyncedMeta('entityPosition') as alt.Vector3;
+
+    let firstX = veObject.getStreamSyncedMeta('firstX') as number;
+    let secondX = veObject.getStreamSyncedMeta('secondX') as number;
+    let thirdX = veObject.getStreamSyncedMeta('thirdX') as number;
+
+    await alt.Utils.waitFor(() => native.getClosestObjectOfType(entityPosition.x, entityPosition.y, entityPosition.z, 2, entityModel, false, false, false) !== 0);
+
+    let veClosestSlot = native.getClosestObjectOfType(entityPosition.x, entityPosition.y, entityPosition.z, 2, entityModel, false, false, false);
+    let slotHeading = native.getEntityHeading(veClosestSlot);
+
+    let reelLocation1 = native.getOffsetFromCoordAndHeadingInWorldCoords(entityPosition.x, entityPosition.y, entityPosition.z, native.getEntityHeading(veClosestSlot), -0.115, 0.047, 0.906)
+    let reelLocation2 = native.getOffsetFromCoordAndHeadingInWorldCoords(entityPosition.x, entityPosition.y, entityPosition.z, native.getEntityHeading(veClosestSlot), 0.005, 0.047, 0.906)
+    let reelLocation3 = native.getOffsetFromCoordAndHeadingInWorldCoords(entityPosition.x, entityPosition.y, entityPosition.z, native.getEntityHeading(veClosestSlot), 0.125, 0.047, 0.906)
+
+    let veObject1 = new alt.LocalObject(availableSlots[entityModel].reelA, reelLocation1, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+    let veObject2 = new alt.LocalObject(availableSlots[entityModel].reelA, reelLocation2, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+    let veObject3 = new alt.LocalObject(availableSlots[entityModel].reelA, reelLocation3, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+
+    await alt.Utils.waitFor(() => veObject1.isSpawned && veObject2.isSpawned && veObject3.isSpawned)
+    .then(() => {
+        native.setEntityRotation(veObject1, firstX * 22.5 - 180 + 0.0, 0, slotHeading, 0, true);
+        native.setEntityRotation(veObject2, secondX * 22.5 - 180 + 0.0, 0, slotHeading, 0, true);
+        native.setEntityRotation(veObject3, thirdX * 22.5 - 180 + 0.0, 0, slotHeading, 0, true);
+    })
+    .catch((e) => {
+        alt.logError(e);
+    });
+
+    let veBlurryObject1 = new alt.LocalObject(availableSlots[entityModel].reelB, reelLocation1, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+    let veBlurryObject2 = new alt.LocalObject(availableSlots[entityModel].reelB, reelLocation2, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+    let veBlurryObject3 = new alt.LocalObject(availableSlots[entityModel].reelB, reelLocation3, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
+
+    await alt.Utils.waitFor(() => veBlurryObject1.isSpawned && veBlurryObject2.isSpawned && veBlurryObject3.isSpawned)
+    .then(() => {
+        veBlurryObject1.alpha = 0;
+        veBlurryObject2.alpha = 0;
+        veBlurryObject3.alpha = 0;
+    })
+    .catch((e) => {
+        alt.logError(e);
+    });
+
+    streamedSlots.set(veObject.remoteID, { 
+        streamedReel1: veObject1, 
+        streamedReel2: veObject2, 
+        streamedReel3: veObject3, 
+        streamedBlurryReel1: veBlurryObject1, 
+        streamedBlurryReel2: veBlurryObject2,
+        streamedBlurryReel3: veBlurryObject3
+    });
+
+    let spinningInfo = veObject.getStreamSyncedMeta('spinningInfo') as { isSpinning: boolean, spinningStart: number };
+    if (spinningInfo == null && spinningInfo == undefined) return;
+
+    if (spinningInfo.isSpinning) {
+        spinReels(object, spinningInfo.spinningStart);
+    };
+})
+
+alt.on('worldObjectStreamOut', async (object: alt.WorldObject) => {
+    if (!isObjectSlot(object)) return;
+
+    let streamedSlot = streamedSlots.get(object.remoteID);
+    if (streamedSlot.streamedBlurryReel1.valid) streamedSlot.streamedBlurryReel1.destroy();
+    if (streamedSlot.streamedBlurryReel2.valid) streamedSlot.streamedBlurryReel2.destroy();
+    if (streamedSlot.streamedBlurryReel3.valid) streamedSlot.streamedBlurryReel3.destroy();
+    if (streamedSlot.streamedReel1.valid) streamedSlot.streamedReel1.destroy();
+    if (streamedSlot.streamedReel2.valid) streamedSlot.streamedReel2.destroy();
+    if (streamedSlot.streamedReel3.valid) streamedSlot.streamedReel3.destroy();
+
+    streamedSlots.delete(object.remoteID);
+
+})
 
 alt.on('connectionComplete', () => {
     for (let i = 0; i < casinoIpls.length; i++) {
@@ -53,32 +298,7 @@ alt.on('keyup', async (key: alt.KeyCode) => {
         closestSlotRotation == null
         ) return; 
 
-    if (isSeated) return;
-
-    let slotHeading = native.getEntityHeading(closestSlot);
-
-    let reelLocation1 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), -0.115, 0.047, 0.906)
-    let reelLocation2 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.005, 0.047, 0.906)
-    let reelLocation3 = native.getOffsetFromCoordAndHeadingInWorldCoords(closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, native.getEntityHeading(closestSlot), 0.125, 0.047, 0.906)
-
-    let clientObject1 = new alt.LocalObject(availableSlots[closestSlotModel].reelA, reelLocation1, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
-    let clientObject2 = new alt.LocalObject(availableSlots[closestSlotModel].reelA, reelLocation2, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
-    let clientObject3 = new alt.LocalObject(availableSlots[closestSlotModel].reelA, reelLocation3, new alt.Vector3(0, 0, degreesToRadians(slotHeading)), false);
-
-    await alt.Utils.waitFor(() => clientObject1.isSpawned && clientObject2.isSpawned && clientObject3.isSpawned)
-    .then(() => {
-        let localObjPos1 = clientObject1.pos; 
-        clientObject1.destroy();
-        let localObjPos2 = clientObject2.pos; 
-        clientObject2.destroy();
-        let localObjPos3 = clientObject3.pos; 
-        clientObject3.destroy();
-
-        alt.emitServerRaw('serverSlots:enterSlot', slotHeading, localObjPos1, localObjPos2, localObjPos3);
-    })
-    .catch((e) => {
-        alt.logError(e);
-    });
+    alt.emitServerRaw('serverSlots:enterSlot');
 });
 
 alt.on('keyup', (key: alt.KeyCode) => {
@@ -107,25 +327,6 @@ alt.on('keyup', (key: alt.KeyCode) => {
     if (isSpinning) return;
 
     alt.emitServerRaw('serverSlots:leaveSlot');
-});
-
-alt.onServer('clientSlot:positionReels', async (reelObject1: alt.Object, reelObject2: alt.Object, reelObject3: alt.Object, slotReelLocation1: alt.Vector3, slotReelLocation2: alt.Vector3, slotReelLocation3:alt.Vector3) => {
-    await alt.Utils.waitFor(() => reelObject1.isSpawned && reelObject2.isSpawned && reelObject3.isSpawned)
-    .then(() => {
-        native.setEntityCoords(reelObject1, slotReelLocation1.x, slotReelLocation1.y, slotReelLocation1.z, false, false, false, false);
-        native.setEntityCoords(reelObject2, slotReelLocation2.x, slotReelLocation2.y, slotReelLocation2.z, false, false, false, false);
-        native.setEntityCoords(reelObject3, slotReelLocation3.x, slotReelLocation3.y, slotReelLocation3.z, false, false, false, false);
-    })
-    .catch((e) => {
-        alt.logError(e);
-    });
-});
-
-alt.onServer('clientSlot:clunkSound', () => {
-    const soundId = native.getSoundId();
-
-    native.playSoundFromCoord(soundId, 'wheel_stop_clunk', closestSlotCoord.x, closestSlotCoord.y, closestSlotCoord.z, availableSlots[closestSlotModel].slotSound, false, 20, false);
-    native.releaseSoundId(soundId);
 });
 
 alt.onServer('clientSlot:leaveSlot', async (slotPosition: alt.Vector3, slotModel: number) => {
